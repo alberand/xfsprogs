@@ -137,6 +137,7 @@ enum {
 	M_REFLINK,
 	M_INOBTCNT,
 	M_BIGTIME,
+	M_VERITY,
 	M_MAX_OPTS,
 };
 
@@ -736,6 +737,7 @@ static struct opt_params mopts = {
 		[M_REFLINK] = "reflink",
 		[M_INOBTCNT] = "inobtcount",
 		[M_BIGTIME] = "bigtime",
+		[M_VERITY] = "verity",
 		[M_MAX_OPTS] = NULL,
 	},
 	.subopt_params = {
@@ -774,6 +776,12 @@ static struct opt_params mopts = {
 		  .defaultval = 1,
 		},
 		{ .index = M_BIGTIME,
+		  .conflicts = { { NULL, LAST_CONFLICT } },
+		  .minval = 0,
+		  .maxval = 1,
+		  .defaultval = 1,
+		},
+		{ .index = M_VERITY,
 		  .conflicts = { { NULL, LAST_CONFLICT } },
 		  .minval = 0,
 		  .maxval = 1,
@@ -834,6 +842,7 @@ struct sb_feat_args {
 	bool	nodalign;
 	bool	nortalign;
 	bool	nrext64;
+	bool	verity;			/* XFS_SB_FEAT_RO_COMPAT_VERITY */
 };
 
 struct cli_params {
@@ -959,7 +968,7 @@ usage( void )
 /* blocksize */		[-b size=num]\n\
 /* config file */	[-c options=xxx]\n\
 /* metadata */		[-m crc=0|1,finobt=0|1,uuid=xxx,rmapbt=0|1,reflink=0|1,\n\
-			    inobtcount=0|1,bigtime=0|1]\n\
+			    inobtcount=0|1,bigtime=0|1,verity=0|1]\n\
 /* data subvol */	[-d agcount=n,agsize=n,file,name=xxx,size=num,\n\
 			    (sunit=value,swidth=value|su=num,sw=num|noalign),\n\
 			    sectsize=num\n\
@@ -1713,6 +1722,9 @@ meta_opts_parser(
 		break;
 	case M_BIGTIME:
 		cli->sb_feat.bigtime = getnum(value, opts, subopt);
+		break;
+	case M_VERITY:
+		cli->sb_feat.verity = getnum(value, opts, subopt);
 		break;
 	default:
 		return -EINVAL;
@@ -3264,6 +3276,8 @@ sb_set_features(
 		sbp->sb_features_ro_compat |= XFS_SB_FEAT_RO_COMPAT_REFLINK;
 	if (fp->inobtcnt)
 		sbp->sb_features_ro_compat |= XFS_SB_FEAT_RO_COMPAT_INOBTCNT;
+	if (fp->verity)
+		sbp->sb_features_ro_compat |= XFS_SB_FEAT_RO_COMPAT_VERITY;
 	if (fp->bigtime)
 		sbp->sb_features_incompat |= XFS_SB_FEAT_INCOMPAT_BIGTIME;
 
@@ -4069,6 +4083,7 @@ main(
 			.nortalign = false,
 			.bigtime = true,
 			.nrext64 = false,
+			.verity = false,
 			/*
 			 * When we decide to enable a new feature by default,
 			 * please remember to update the mkfs conf files.
