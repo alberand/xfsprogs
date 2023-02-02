@@ -1622,10 +1622,15 @@ xfs_attr_namecheck(
 	}
 
 	if (flags & XFS_ATTR_VERITY) {
-		if (length != sizeof(__be64) &&
-				length != XFS_VERITY_DESCRIPTOR_NAME_LEN)
-			return false;
-		return true;
+		/* Merkle tree pages are stored under u64 indexes */
+		if (length == sizeof(__be64))
+			return true;
+
+		/* Verity descriptor blocks are held in a named attribute. */
+		if (length == XFS_VERITY_DESCRIPTOR_NAME_LEN)
+			return true;
+
+		return false;
 	}
 
 	return xfs_str_attr_namecheck(name, length);
