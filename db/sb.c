@@ -709,6 +709,8 @@ version_string(
 		strcat(s, ",NREXT64");
 	if (xfs_has_parent(mp))
 		strcat(s, ",PARENT");
+	if (xfs_has_verity(mp))
+		strcat(s, ",VERITY");
 	return s;
 }
 
