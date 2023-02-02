@@ -24,7 +24,6 @@
 #include "xfs_quota_defs.h"
 #include "xfs_trans_space.h"
 #include "xfs_trace.h"
-#include "xfs_verity.h"
 
 struct kmem_cache		*xfs_attr_intent_cache;
 
@@ -1637,7 +1636,7 @@ xfs_attr_namecheck(
 			return true;
 
 		/* Verity descriptor blocks are held in a named attribute. */
-		if (length == XFS_VERITY_DESCRIPTOR_NAME_LEN)
+		if (length == 17)
 			return true;
 
 		return false;
