@@ -41,6 +41,11 @@ endif
 
 endif	# scrub_prereqs
 
+UDEV_RULES = 64-xfs.rules
+ifeq ($(HAVE_UDEV),yes)
+	INSTALL_SCRUB += install-udev
+endif
+
 HFILES = \
 common.h \
 counter.h \
@@ -179,6 +184,10 @@ install-scrub: default
 	$(LTINSTALL) -m 755 $(LTCOMMAND) $(PKG_SBIN_DIR)
 	$(INSTALL) -m 755 $(XFS_SCRUB_ALL_PROG) $(PKG_SBIN_DIR)
 	$(INSTALL) -m 755 -d $(PKG_STATE_DIR)
+
+install-udev: $(UDEV_RULES)
+	$(INSTALL) -m 755 -d $(UDEV_RULE_DIR)
+	$(INSTALL) -m 644 $(UDEV_RULES) $(UDEV_RULE_DIR)
 
 install-dev:
 
