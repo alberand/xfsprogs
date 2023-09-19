@@ -146,6 +146,7 @@ xfrog_scrub_metadata(
 	int				ret;
 
 	ret = ioctl(xfd->fd, XFS_IOC_SCRUB_METADATA, meta);
+	printf("inode: %lld; ret: %d;\n", meta->sm_ino, ret);
 	if (ret)
 		return -errno;
 

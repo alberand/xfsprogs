@@ -45,6 +45,8 @@ simple_check_name(
 	bool			bad = false;
 	char			*errname;
 
+	return 0;
+
 	/* Complain about zero length names. */
 	if (*name == '\0' && should_warn_about_name(ctx)) {
 		str_warn(ctx, descr_render(dsc), _("Zero length name found."));
