@@ -109,7 +109,7 @@ endif
 
 configure: configure.ac
 	libtoolize -c -i -f
-	cp include/install-sh .
+	cp -f include/install-sh .
 	aclocal -I m4
 	autoconf
 
