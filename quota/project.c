@@ -12,6 +12,7 @@
 static cmdinfo_t project_cmd;
 static prid_t prid;
 static int recurse_depth = -1;
+static int dfd;
 
 enum {
 	CHECK_PROJECT	= 0x1,
@@ -19,7 +20,7 @@ enum {
 	CLEAR_PROJECT	= 0x4,
 };
 
-#define EXCLUDED_FILE_TYPES(x) \
+#define SPECIAL_FILE(x) \
 	   (S_ISCHR((x)) \
 	|| S_ISBLK((x)) \
 	|| S_ISFIFO((x)) \
@@ -79,14 +80,84 @@ project_help(void)
 }
 
 static int
+get_fsxattr(
+	const char		*path,
+	const struct stat	*stat,
+	struct FTW		*data,
+	struct fsxattr		*fsx)
+{
+	int			error;
+	int			fd;
+	struct fsxattrat	xreq = {
+		.fsx = { 0 },
+		.dfd = dfd,
+		.atfd = 0,
+	};
+
+	if (SPECIAL_FILE(stat->st_mode)) {
+		xreq.atfd = open(path, O_PATH | O_NOFOLLOW);
+		if (xreq.atfd == -1)
+			return errno;
+
+		error = ioctl(dfd, FS_IOC_FSGETXATTRAT, &xreq);
+		if (error)
+			return error;
+
+		memcpy(fsx, &xreq.fsx, sizeof(struct fsxattr));
+		return error;
+	}
+
+	fd = open(path, O_RDONLY|O_NOCTTY);
+	if (fd == -1)
+		return errno;
+
+	error = ioctl(fd, FS_IOC_FSGETXATTR, fsx);
+	close(fd);
+
+	return error;
+}
+
+static int
+set_fsxattr(
+	const char		*path,
+	const struct stat	*stat,
+	struct FTW		*data,
+	struct fsxattr		*fsx)
+{
+	int			error;
+	int			fd;
+	struct fsxattrat	xreq = {
+		.fsx = *fsx, /* struct copy */
+		.dfd = dfd,
+		.atfd = 0,
+	};
+
+	if (SPECIAL_FILE(stat->st_mode)) {
+		xreq.atfd = open(path, O_PATH | O_NOFOLLOW);
+		if (xreq.atfd == -1)
+			return errno;
+		return ioctl(dfd, FS_IOC_FSSETXATTRAT, &xreq);
+	}
+
+	fd = open(path, O_RDONLY|O_NOCTTY);
+	if (fd == -1)
+		return errno;
+
+	error = ioctl(fd, FS_IOC_FSSETXATTR, fsx);
+	close(fd);
+
+	return error;
+}
+
+static int
 check_project(
 	const char		*path,
 	const struct stat	*stat,
 	int			flag,
 	struct FTW		*data)
 {
-	struct fsxattr		fsx;
-	int			fd;
+	int			error;
+	struct fsxattr		fsx = { 0 };
 
 	if (recurse_depth >= 0 && data->level > recurse_depth)
 		return 0;
@@ -96,30 +167,23 @@ check_project(
 		fprintf(stderr, _("%s: cannot stat file %s\n"), progname, path);
 		return 0;
 	}
-	if (EXCLUDED_FILE_TYPES(stat->st_mode)) {
-		fprintf(stderr, _("%s: skipping special file %s\n"), progname, path);
-		return 0;
-	}
 
-	if ((fd = open(path, O_RDONLY|O_NOCTTY)) == -1) {
-		exitcode = 1;
-		fprintf(stderr, _("%s: cannot open %s: %s\n"),
-			progname, path, strerror(errno));
-	} else if ((xfsctl(path, fd, FS_IOC_FSGETXATTR, &fsx)) < 0) {
+	error = get_fsxattr(path, stat, data, &fsx);
+	if (error) {
 		exitcode = 1;
 		fprintf(stderr, _("%s: cannot get flags on %s: %s\n"),
 			progname, path, strerror(errno));
-	} else {
-		if (fsx.fsx_projid != prid)
-			printf(_("%s - project identifier is not set"
-				 " (inode=%u, tree=%u)\n"),
-				path, fsx.fsx_projid, (unsigned int)prid);
-		if (!(fsx.fsx_xflags & FS_XFLAG_PROJINHERIT) && S_ISDIR(stat->st_mode))
-			printf(_("%s - project inheritance flag is not set\n"),
-				path);
+		return 0;
 	}
-	if (fd != -1)
-		close(fd);
+
+	if (fsx.fsx_projid != prid)
+		printf(_("%s - project identifier is not set"
+				" (inode=%u, tree=%u)\n"),
+			path, fsx.fsx_projid, (unsigned int)prid);
+	if (!(fsx.fsx_xflags & FS_XFLAG_PROJINHERIT) && S_ISDIR(stat->st_mode))
+		printf(_("%s - project inheritance flag is not set\n"),
+			path);
+
 	return 0;
 }
 
@@ -130,8 +194,8 @@ clear_project(
 	int			flag,
 	struct FTW		*data)
 {
+	int			error;
 	struct fsxattr		fsx;
-	int			fd;
 
 	if (recurse_depth >= 0 && data->level > recurse_depth)
 		return 0;
@@ -141,32 +205,24 @@ clear_project(
 		fprintf(stderr, _("%s: cannot stat file %s\n"), progname, path);
 		return 0;
 	}
-	if (EXCLUDED_FILE_TYPES(stat->st_mode)) {
-		fprintf(stderr, _("%s: skipping special file %s\n"), progname, path);
-		return 0;
-	}
 
-	if ((fd = open(path, O_RDONLY|O_NOCTTY)) == -1) {
-		exitcode = 1;
-		fprintf(stderr, _("%s: cannot open %s: %s\n"),
-			progname, path, strerror(errno));
-		return 0;
-	} else if (xfsctl(path, fd, FS_IOC_FSGETXATTR, &fsx) < 0) {
+	error = get_fsxattr(path, stat, data, &fsx);
+	if (error) {
 		exitcode = 1;
 		fprintf(stderr, _("%s: cannot get flags on %s: %s\n"),
-			progname, path, strerror(errno));
-		close(fd);
+				progname, path, strerror(errno));
 		return 0;
 	}
 
 	fsx.fsx_projid = 0;
 	fsx.fsx_xflags &= ~FS_XFLAG_PROJINHERIT;
-	if (xfsctl(path, fd, FS_IOC_FSSETXATTR, &fsx) < 0) {
+
+	error = set_fsxattr(path, stat, data, &fsx);
+	if (error) {
 		exitcode = 1;
 		fprintf(stderr, _("%s: cannot clear project on %s: %s\n"),
 			progname, path, strerror(errno));
 	}
-	close(fd);
 	return 0;
 }
 
@@ -178,7 +234,7 @@ setup_project(
 	struct FTW		*data)
 {
 	struct fsxattr		fsx;
-	int			fd;
+	int			error;
 
 	if (recurse_depth >= 0 && data->level > recurse_depth)
 		return 0;
@@ -188,32 +244,25 @@ setup_project(
 		fprintf(stderr, _("%s: cannot stat file %s\n"), progname, path);
 		return 0;
 	}
-	if (EXCLUDED_FILE_TYPES(stat->st_mode)) {
-		fprintf(stderr, _("%s: skipping special file %s\n"), progname, path);
-		return 0;
-	}
 
-	if ((fd = open(path, O_RDONLY|O_NOCTTY)) == -1) {
-		exitcode = 1;
-		fprintf(stderr, _("%s: cannot open %s: %s\n"),
-			progname, path, strerror(errno));
-		return 0;
-	} else if (xfsctl(path, fd, FS_IOC_FSGETXATTR, &fsx) < 0) {
+	error = get_fsxattr(path, stat, data, &fsx);
+	if (error) {
 		exitcode = 1;
 		fprintf(stderr, _("%s: cannot get flags on %s: %s\n"),
-			progname, path, strerror(errno));
-		close(fd);
+				progname, path, strerror(errno));
 		return 0;
 	}
 
 	fsx.fsx_projid = prid;
-	fsx.fsx_xflags |= FS_XFLAG_PROJINHERIT;
-	if (xfsctl(path, fd, FS_IOC_FSSETXATTR, &fsx) < 0) {
+	if (S_ISDIR(stat->st_mode))
+		fsx.fsx_xflags |= FS_XFLAG_PROJINHERIT;
+
+	error = set_fsxattr(path, stat, data, &fsx);
+	if (error) {
 		exitcode = 1;
 		fprintf(stderr, _("%s: cannot set project on %s: %s\n"),
 			progname, path, strerror(errno));
 	}
-	close(fd);
 	return 0;
 }
 
@@ -223,6 +272,13 @@ project_operations(
 	char		*dir,
 	int		type)
 {
+	dfd = open(dir, O_RDONLY|O_NOCTTY);
+	if (dfd < -1) {
+		printf(_("Error opening dir %s for project %s...\n"), dir,
+				project);
+		return;
+	}
+
 	switch (type) {
 	case CHECK_PROJECT:
 		printf(_("Checking project %s (path %s)...\n"), project, dir);
@@ -237,6 +293,8 @@ project_operations(
 		nftw(dir, clear_project, 100, FTW_PHYS|FTW_MOUNT);
 		break;
 	}
+
+	close(dfd);
 }
 
 static void

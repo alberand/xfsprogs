@@ -249,6 +249,20 @@ struct fsxattr {
 #define FS_XFLAG_COWEXTSIZE	0x00010000	/* CoW extent size allocator hint */
 #endif
 
+#ifndef FS_IOC_FSGETXATTRAT
+/*
+ * Structure passed to FS_IOC_FSGETXATTRAT/FS_IOC_FSSETXATTRAT
+ */
+struct fsxattrat {
+	struct fsxattr	fsx;		/* XATTR to get/set */
+	__u32		dfd;		/* parent dir */
+	__u32		atfd;
+};
+
+#define FS_IOC_FSGETXATTRAT   _IOR ('X', 33, struct fsxattrat)
+#define FS_IOC_FSSETXATTRAT   _IOW ('X', 34, struct fsxattrat)
+#endif
+
 /*
  * Reminder: anything added to this file will be compiled into downstream
  * userspace projects!
