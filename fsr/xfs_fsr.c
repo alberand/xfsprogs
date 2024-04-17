@@ -167,7 +167,7 @@ main(int argc, char **argv)
 			errno = 0;
 			howlong = strtol(optarg, NULL, 10);
 			if (errno) {
-				fprintf(stderr, _("%s: invalid interval: %s\n"),
+				fprintf(stderr, _("%s: invalid runtime: %s\n"),
 					optarg, strerror(errno));
 				exit(1);
 			}
