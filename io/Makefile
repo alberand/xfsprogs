@@ -14,7 +14,7 @@ CFILES = init.c \
 	link.c mmap.c open.c parent.c pread.c prealloc.c pwrite.c reflink.c \
 	resblks.c scrub.c seek.c shutdown.c stat.c swapext.c sync.c \
 	truncate.c utimes.c fadvise.c sendfile.c madvise.c mincore.c fiemap.c \
-	sync_file_range.c readdir.c
+	sync_file_range.c readdir.c xattr.c
 
 LLDLIBS = $(LIBXCMD) $(LIBHANDLE) $(LIBFROG) $(LIBPTHREAD) $(LIBUUID)
 LTDEPENDENCIES = $(LIBXCMD) $(LIBHANDLE) $(LIBFROG)
