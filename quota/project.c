@@ -4,6 +4,8 @@
  * All Rights Reserved.
  */
 
+#include <sys/syscall.h>      /* Definition of SYS_* constants */
+#include <unistd.h>
 #include "command.h"
 #include "input.h"
 #include "init.h"
@@ -88,24 +90,9 @@ get_fsxattr(
 {
 	int			error;
 	int			fd;
-	struct fsxattrat	xreq = {
-		.fsx = { 0 },
-		.dfd = dfd,
-		.atfd = 0,
-	};
 
-	if (SPECIAL_FILE(stat->st_mode)) {
-		xreq.atfd = open(path, O_PATH | O_NOFOLLOW);
-		if (xreq.atfd == -1)
-			return errno;
-
-		error = ioctl(dfd, FS_IOC_FSGETXATTRAT, &xreq);
-		if (error)
-			return error;
-
-		memcpy(fsx, &xreq.fsx, sizeof(struct fsxattr));
-		return error;
-	}
+	if (SPECIAL_FILE(stat->st_mode))
+		return syscall(462, dfd, path, fsx, 0);
 
 	fd = open(path, O_RDONLY|O_NOCTTY);
 	if (fd == -1)
@@ -126,18 +113,9 @@ set_fsxattr(
 {
 	int			error;
 	int			fd;
-	struct fsxattrat	xreq = {
-		.fsx = *fsx, /* struct copy */
-		.dfd = dfd,
-		.atfd = 0,
-	};
 
-	if (SPECIAL_FILE(stat->st_mode)) {
-		xreq.atfd = open(path, O_PATH | O_NOFOLLOW);
-		if (xreq.atfd == -1)
-			return errno;
-		return ioctl(dfd, FS_IOC_FSSETXATTRAT, &xreq);
-	}
+	if (SPECIAL_FILE(stat->st_mode))
+		return syscall(463, dfd, path, fsx, 0);
 
 	fd = open(path, O_RDONLY|O_NOCTTY);
 	if (fd == -1)
