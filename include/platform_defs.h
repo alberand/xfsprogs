@@ -261,4 +261,8 @@ static inline bool __must_check __must_check_overflow(bool overflow)
 	__builtin_add_overflow(__a, __b, __d);	\
 }))
 
+#ifdef HAVE_FSVERITY_DESCR
+# include <linux/fsverity.h>
+#endif
+
 #endif	/* __XFS_PLATFORM_DEFS_H__ */
