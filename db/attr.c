@@ -35,6 +35,8 @@ static int	attr3_remote_data_count(void *obj, int startoff);
 
 static int	attr_leaf_value_pptr_count(void *obj, int startoff);
 
+static int	attr_leaf_vdesc_count(void *obj, int startoff);
+
 const field_t	attr_hfld[] = {
 	{ "", FLDT_ATTR, OI(0), C1, 0, TYP_NONE },
 	{ NULL }
@@ -132,6 +134,8 @@ const field_t	attr_leaf_name_flds[] = {
 	  attr_leaf_name_remote_count, FLD_COUNT, TYP_NONE },
 	{ "name", FLDT_CHARNS, OI(LVOFF(name)),
 	  attr_leaf_name_remote_name_count, FLD_COUNT, TYP_NONE },
+	{ "vdesc", FLDT_FSVERITY_DESCR, attr_leaf_name_local_value_offset,
+	  attr_leaf_vdesc_count, FLD_COUNT|FLD_OFFSET, TYP_NONE },
 	{ NULL }
 };
 
@@ -540,6 +544,34 @@ attr_leaf_value_pptr_count(
 	int				startoff)
 {
 	return attr_leaf_entry_walk(obj, startoff, __leaf_pptr_count);
+}
+
+static int
+__leaf_vdesc_count(
+	struct xfs_attr_leafblock	*leaf,
+	struct xfs_attr_leaf_entry      *e,
+	int				i)
+{
+	struct xfs_attr_leaf_name_local	*l;
+
+	if (!(e->flags & XFS_ATTR_LOCAL))
+		return 0;
+	if ((e->flags & XFS_ATTR_NSP_ONDISK_MASK) != XFS_ATTR_VERITY)
+		return 0;
+
+	l = xfs_attr3_leaf_name_local(leaf, i);
+	if (l->namelen != XFS_VERITY_DESCRIPTOR_NAME_LEN)
+		return 0;
+
+	return 1;
+}
+
+static int
+attr_leaf_vdesc_count(
+	void				*obj,
+	int				startoff)
+{
+	return attr_leaf_entry_walk(obj, startoff, __leaf_vdesc_count);
 }
 
 int

@@ -333,4 +333,8 @@ struct kvec {
 /* xfs_attr.h */
 #define __counted_by_ptr(member)
 
+#ifdef HAVE_FSVERITY_DESCR
+# include <linux/fsverity.h>
+#endif
+
 #endif	/* __XFS_PLATFORM_DEFS_H__ */
