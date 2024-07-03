@@ -268,6 +268,10 @@ struct file_attr {
 #define RWF_DONTCACHE	((__kernel_rwf_t)0x00000080)
 #endif
 
+#ifndef FS_XFLAG_VERITY
+#define FS_XFLAG_VERITY		0x00020000	/* fs-verity enabled */
+#endif
+
 /*
  * Reminder: anything added to this file will be compiled into downstream
  * userspace projects!
