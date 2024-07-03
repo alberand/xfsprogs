@@ -127,6 +127,7 @@ HAVE_STATMOUNT_SUPPORTED_MASK = @have_statmount_supported_mask@
 NEED_INTERNAL_STATMOUNT = @need_internal_statmount@
 HAVE_FANOTIFY_MOUNTINFO = @have_fanotify_mountinfo@
 HAVE_FSVERITY_DESCR = @have_fsverity_descr@
+HAVE_LIBSSL_SHA2 = @have_libssl_sha2@
 
 GCCFLAGS = -funsigned-char -fno-strict-aliasing -Wall
 #	   -Wbitwise -Wno-transparent-union -Wno-old-initializer -Wno-decl
