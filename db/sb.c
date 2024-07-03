@@ -821,6 +821,8 @@ version_string(
 		strcat(s, ",PARENT");
 	if (xfs_has_metadir(mp))
 		strcat(s, ",METADIR");
+	if (xfs_has_verity(mp))
+		strcat(s, ",VERITY");
 	return s;
 }
 
