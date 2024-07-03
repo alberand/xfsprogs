@@ -89,6 +89,12 @@ struct xfs_perag {
 
 	/* background prealloc block trimming */
 	struct delayed_work	pag_blockgc_work;
+
+# ifdef CONFIG_FS_VERITY
+	/* per-inode merkle tree caches */
+	spinlock_t		pagi_merkle_lock;
+	struct rhashtable	pagi_merkle_blobs;
+# endif /* CONFIG_FS_VERITY */
 #endif /* __KERNEL__ */
 };
 
@@ -120,6 +126,7 @@ static inline xfs_agnumber_t pag_agno(const struct xfs_perag *pag)
 #define XFS_AGSTATE_PREFERS_METADATA	2
 #define XFS_AGSTATE_ALLOWS_INODES	3
 #define XFS_AGSTATE_AGFL_NEEDS_RESET	4
+#define XFS_AGSTATE_MERKLE		5
 
 #define __XFS_AG_OPSTATE(name, NAME) \
 static inline bool xfs_perag_ ## name (struct xfs_perag *pag) \
@@ -132,6 +139,7 @@ __XFS_AG_OPSTATE(initialised_agi, AGI_INIT)
 __XFS_AG_OPSTATE(prefers_metadata, PREFERS_METADATA)
 __XFS_AG_OPSTATE(allows_inodes, ALLOWS_INODES)
 __XFS_AG_OPSTATE(agfl_needs_reset, AGFL_NEEDS_RESET)
+__XFS_AG_OPSTATE(caches_merkle, MERKLE)
 
 int xfs_initialize_perag(struct xfs_mount *mp, xfs_agnumber_t orig_agcount,
 		xfs_agnumber_t new_agcount, xfs_rfsblock_t dcount,
