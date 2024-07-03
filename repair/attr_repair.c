@@ -334,6 +334,13 @@ process_shortform_attr(
 			junkit |= 1;
 		}
 
+		if ((currententry->flags & XFS_ATTR_VERITY) &&
+		    !xfs_has_verity(mp)) {
+			do_warn(
+ _("verity metadata found on filesystem that doesn't support verity\n"));
+			junkit |= 1;
+		}
+
 		remainingspace = remainingspace -
 					xfs_attr_sf_entsize(currententry);
 
@@ -539,6 +546,14 @@ process_leaf_attr_local(
 		do_warn(
  _("parent pointer found in attribute entry %d in attr block %u, inode %"
    PRIu64 " on filesystem that doesn't support parent pointers\n"),
+				i, da_bno, ino);
+		return -1;
+	}
+
+	if ((entry->flags & XFS_ATTR_VERITY) && !xfs_has_verity(mp)) {
+		do_warn(
+ _("verity metadata found in attribute entry %d in attr block %u, inode %"
+   PRIu64 " on filesystem that doesn't support verity\n"),
 				i, da_bno, ino);
 		return -1;
 	}
