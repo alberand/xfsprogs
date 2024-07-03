@@ -111,6 +111,10 @@ ifeq ($(STRERROR_R_RETURNS_STRING),yes)
 LCFLAGS += -DSTRERROR_R_RETURNS_STRING
 endif
 
+ifeq ($(HAVE_FSVERITY_DESCR),yes)
+LCFLAGS += -DHAVE_FSVERITY_DESCR
+endif
+
 # Automatically trigger a media scan once per month
 XFS_SCRUB_ALL_AUTO_MEDIA_SCAN_INTERVAL=1mo
 
