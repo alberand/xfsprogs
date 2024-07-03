@@ -55,6 +55,7 @@ getbitval(
 	char		*p;
 	int64_t		rval;
 	int		signext;
+	bool		is_le = (flags & BV_LE);
 
 	ASSERT(nbits<=64);
 
@@ -67,12 +68,26 @@ getbitval(
 
 	switch (nbits) {
 	case 64:
+		if (is_le)
+			return get_unaligned_le64(p);
 		return get_unaligned_be64(p);
 	case 32:
+		if (is_le) {
+			if (signext)
+				return (__s32)get_unaligned_le32(p);
+			return (__u32)get_unaligned_le32(p);
+		}
+
 		if (signext)
 			return (__s32)get_unaligned_be32(p);
 		return (__u32)get_unaligned_be32(p);
 	case 16:
+		if (is_le) {
+			if (signext)
+				return (__s16)get_unaligned_le16(p);
+			return (__u16)get_unaligned_le16(p);
+		}
+
 		if (signext)
 			return (__s16)get_unaligned_be16(p);
 		return (__u16)get_unaligned_be16(p);
