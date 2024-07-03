@@ -163,6 +163,12 @@ XFS_IOC_EXCHANGE_RANGE ioctl, and to support online repairs of directories,
 extended attributes, symbolic links, and realtime free space metadata.
 The filesystem cannot be downgraded after this feature is enabled.
 Once enabled, the filesystem will not be mountable by older kernels.
+.TP 0.4i
+.B verity
+Enable fs-verity on the filesystem, which allows for sealing of regular file
+data with signed hashes.
+The filesystem cannot be downgraded after this feature is enabled.
+This feature is not upstream yet.
 .RE
 .TP
 .BI \-U " uuid"

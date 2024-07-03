@@ -71,6 +71,7 @@ enum c_opt_nums {
 	CONVERT_BIGTIME,
 	CONVERT_NREXT64,
 	CONVERT_EXCHRANGE,
+	CONVERT_VERITY,
 	C_MAX_OPTS,
 };
 
@@ -80,6 +81,7 @@ static char *c_opts[] = {
 	[CONVERT_BIGTIME]	= "bigtime",
 	[CONVERT_NREXT64]	= "nrext64",
 	[CONVERT_EXCHRANGE]	= "exchange",
+	[CONVERT_VERITY]	= "verity",
 	[C_MAX_OPTS]		= NULL,
 };
 
@@ -371,6 +373,15 @@ process_args(int argc, char **argv)
 						do_abort(
 		_("-c exchange only supports upgrades\n"));
 					add_exchrange = true;
+					break;
+				case CONVERT_VERITY:
+					if (!val)
+						do_abort(
+		_("-c verity requires a parameter\n"));
+					if (strtol(val, NULL, 0) != 1)
+						do_abort(
+		_("-c verity only supports upgrades\n"));
+					add_verity = true;
 					break;
 				default:
 					unknown('c', val);
