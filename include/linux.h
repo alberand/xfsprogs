@@ -236,6 +236,10 @@ struct fsxattr {
 #define RWF_ATOMIC	((__kernel_rwf_t)0x00000040)
 #endif
 
+#ifndef FS_XFLAG_VERITY
+#define FS_XFLAG_VERITY		0x00020000	/* fs-verity enabled */
+#endif
+
 /*
  * Reminder: anything added to this file will be compiled into downstream
  * userspace projects!
