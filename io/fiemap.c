@@ -43,6 +43,13 @@ fiemap_help(void)
 }
 
 static void
+print_total(
+	   struct fiemap	*fiemap)
+{
+	printf("Extents total: %d\n", fiemap->fm_mapped_extents);
+}
+
+static void
 print_hole(
 	   int		foff_w,
 	   int		boff_w,
@@ -223,9 +230,11 @@ fiemap_f(
 	int		done = 0;
 	int		lflag = 0;
 	int		vflag = 0;
+	int		sflag = 0;
 	int		fiemap_flags = FIEMAP_FLAG_SYNC;
 	int		c;
 	int		i;
+	int		ext_arr_size = 0;
 	int		map_size;
 	int		ret;
 	int		cur_extent = 0;
@@ -242,7 +251,7 @@ fiemap_f(
 
 	init_cvtnum(&fsblocksize, &fssectsize);
 
-	while ((c = getopt(argc, argv, "aln:v")) != EOF) {
+	while ((c = getopt(argc, argv, "aln:sv")) != EOF) {
 		switch (c) {
 		case 'a':
 			fiemap_flags |= FIEMAP_FLAG_XATTR;
@@ -252,6 +261,9 @@ fiemap_f(
 			break;
 		case 'n':
 			max_extents = atoi(optarg);
+			break;
+		case 's':
+			sflag++;
 			break;
 		case 'v':
 			vflag++;
@@ -285,8 +297,9 @@ fiemap_f(
 		range_end = start_offset + length;
 	}
 
-	map_size = sizeof(struct fiemap) +
-		(EXTENT_BATCH * sizeof(struct fiemap_extent));
+	if (!sflag)
+		ext_arr_size = (EXTENT_BATCH * sizeof(struct fiemap_extent));
+	map_size = sizeof(struct fiemap) + ext_arr_size;
 	fiemap = malloc(map_size);
 	if (!fiemap) {
 		fprintf(stderr, _("%s: malloc of %d bytes failed.\n"),
@@ -302,7 +315,8 @@ fiemap_f(
 		fiemap->fm_flags = fiemap_flags;
 		fiemap->fm_start = last_logical;
 		fiemap->fm_length = range_end - last_logical;
-		fiemap->fm_extent_count = EXTENT_BATCH;
+		if (!sflag)
+			fiemap->fm_extent_count = EXTENT_BATCH;
 
 		ret = ioctl(file->fd, FS_IOC_FIEMAP, (unsigned long)fiemap);
 		if (ret < 0) {
@@ -311,6 +325,11 @@ fiemap_f(
 			free(fiemap);
 			exitcode = 1;
 			return 0;
+		}
+
+		if (sflag) {
+			print_total(fiemap);
+			goto out;
 		}
 
 		/* No more extents to map, exit */
