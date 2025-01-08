@@ -24,6 +24,7 @@ fsproperties.c \
 fsprops.c \
 getparents.c \
 histogram.c \
+ixattr.c \
 list_sort.c \
 linux.c \
 logging.c \
@@ -55,6 +56,7 @@ fsprops.h \
 getparents.h \
 handle_priv.h \
 histogram.h \
+ixattr.h \
 logging.h \
 paths.h \
 projects.h \
@@ -67,6 +69,10 @@ workqueue.h
 LSRCFILES += gen_crc32table.c
 
 LDIRT = gen_crc32table crc32table.h
+
+ifeq ($(HAVE_FSXATTRAT),yes)
+LCFLAGS += -DHAVE_FSXATTRAT
+endif
 
 default: ltdepend $(LTLIBRARY)
 
