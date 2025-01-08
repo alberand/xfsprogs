@@ -24,6 +24,7 @@ fsproperties.c \
 fsprops.c \
 getparents.c \
 histogram.c \
+ixattr.c \
 list_sort.c \
 linux.c \
 logging.c \
@@ -55,6 +56,7 @@ fsprops.h \
 getparents.h \
 handle_priv.h \
 histogram.h \
+ixattr.h \
 logging.h \
 paths.h \
 projects.h \
@@ -75,6 +77,10 @@ ifeq ($(ENABLE_GETTEXT),yes)
 HAVE_GETTEXT = True
 else
 HAVE_GETTEXT = False
+endif
+
+ifeq ($(HAVE_FSXATTRAT),yes)
+LCFLAGS += -DHAVE_FSXATTRAT
 endif
 
 default: ltdepend $(LTLIBRARY) $(GETTEXT_PY)
