@@ -1147,7 +1147,7 @@ struct mkfs_default_params {
 static void __attribute__((noreturn))
 usage( void )
 {
-	fprintf(stderr, _("Usage: %s\n\
+	fprintf(stderr, _("Usage xujuza4: %s\n\
 /* blocksize */		[-b size=num]\n\
 /* config file */	[-c options=xxx]\n\
 /* metadata */		[-m crc=0|1,finobt=0|1,uuid=xxx,rmapbt=0|1,reflink=0|1,\n\
