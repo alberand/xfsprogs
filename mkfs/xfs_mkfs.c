@@ -1333,6 +1333,7 @@ check_device_type(
 	struct libxfs_dev	*dev,
 	bool			no_size,
 	bool			dry_run,
+	const char		*device_type,
 	const char		*optname)
 {
 	struct stat statbuf;
@@ -1345,7 +1346,8 @@ check_device_type(
 	}
 
 	if (!dev->name) {
-		fprintf(stderr, _("No device name specified\n"));
+		fprintf(stderr, _("No %s device name specified\n"),
+				device_type);
 		usage();
 	}
 
@@ -2376,11 +2378,13 @@ validate_sectorsize(
 	 * Before anything else, verify that we are correctly operating on
 	 * files or block devices and set the control parameters correctly.
 	 */
-	check_device_type(&cli->xi->data, !cli->dsize, dry_run, "d");
+	check_device_type(&cli->xi->data, !cli->dsize, dry_run, "data", "d");
 	if (!cli->loginternal)
-		check_device_type(&cli->xi->log, !cli->logsize, dry_run, "l");
+		check_device_type(&cli->xi->log, !cli->logsize, dry_run, "log",
+				"l");
 	if (cli->xi->rt.name)
-		check_device_type(&cli->xi->rt, !cli->rtsize, dry_run, "r");
+		check_device_type(&cli->xi->rt, !cli->rtsize, dry_run, "RT",
+				"r");
 
 	/*
 	 * Explicitly disable direct IO for image files so we don't error out on
