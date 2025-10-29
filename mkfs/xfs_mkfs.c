@@ -4005,8 +4005,7 @@ ddev_is_solidstate(
 static void
 calc_concurrency_ag_geometry(
 	struct mkfs_params	*cfg,
-	struct cli_params	*cli,
-	struct libxfs_init	*xi)
+	struct cli_params	*cli)
 {
 	uint64_t		try_agsize;
 	uint64_t		def_agsize;
@@ -4074,11 +4073,10 @@ out:
 static void
 calculate_initial_ag_geometry(
 	struct mkfs_params	*cfg,
-	struct cli_params	*cli,
-	struct libxfs_init	*xi)
+	struct cli_params	*cli)
 {
 	if (cli->data_concurrency > 0) {
-		calc_concurrency_ag_geometry(cfg, cli, xi);
+		calc_concurrency_ag_geometry(cfg, cli);
 	} else if (cli->agsize) {	/* User-specified AG size */
 		cfg->agsize = getnum(cli->agsize, &dopts, D_AGSIZE);
 
@@ -4099,8 +4097,9 @@ _("agsize (%s) not a multiple of fs blk size (%d)\n"),
 		cfg->agcount = cli->agcount;
 		cfg->agsize = cfg->dblocks / cfg->agcount +
 				(cfg->dblocks % cfg->agcount != 0);
-	} else if (cli->data_concurrency == -1 && ddev_is_solidstate(xi)) {
-		calc_concurrency_ag_geometry(cfg, cli, xi);
+	} else if (cli->data_concurrency == -1 &&
+		   ddev_is_solidstate(cli->xi)) {
+		calc_concurrency_ag_geometry(cfg, cli);
 	} else {
 		calc_default_ag_geometry(cfg->blocklog, cfg->dblocks,
 					 cfg->dsunit, &cfg->agsize,
@@ -4360,8 +4359,7 @@ rtdev_is_solidstate(
 static void
 calc_concurrency_rtgroup_geometry(
 	struct mkfs_params	*cfg,
-	struct cli_params	*cli,
-	struct libxfs_init	*xi)
+	struct cli_params	*cli)
 {
 	uint64_t		try_rgsize;
 	uint64_t		def_rgsize;
@@ -4468,8 +4466,7 @@ _("realtime group count (%llu) must be less than the maximum (%u)\n"),
 static void
 calculate_rtgroup_geometry(
 	struct mkfs_params	*cfg,
-	struct cli_params	*cli,
-	struct libxfs_init	*xi)
+	struct cli_params	*cli)
 {
 	if (!cli->sb_feat.metadir) {
 		cfg->rgcount = 0;
@@ -4510,8 +4507,9 @@ _("rgsize (%s) not a multiple of fs blk size (%d)\n"),
 		cfg->rgsize = cfg->rtblocks;
 		cfg->rgcount = 0;
 	} else if (cli->rtvol_concurrency > 0 ||
-		   (cli->rtvol_concurrency == -1 && rtdev_is_solidstate(xi))) {
-		calc_concurrency_rtgroup_geometry(cfg, cli, xi);
+		   (cli->rtvol_concurrency == -1 &&
+		    rtdev_is_solidstate(cli->xi))) {
+		calc_concurrency_rtgroup_geometry(cfg, cli);
 	} else if (is_power_of_2(cfg->rtextblocks)) {
 		cfg->rgsize = calc_rgsize_extsize_power(cfg);
 		cfg->rgcount = cfg->rtblocks / cfg->rgsize +
@@ -4538,7 +4536,6 @@ static void
 adjust_nr_zones(
 	struct mkfs_params	*cfg,
 	struct cli_params	*cli,
-	struct libxfs_init	*xi,
 	struct zone_topology	*zt)
 {
 	uint64_t		new_rtblocks, slack;
@@ -4547,7 +4544,8 @@ adjust_nr_zones(
 	if (zt->rt.nr_zones)
 		max_zones = zt->rt.nr_zones;
 	else
-		max_zones = DTOBT(xi->rt.size, cfg->blocklog) / cfg->rgsize;
+		max_zones = DTOBT(cli->xi->rt.size, cfg->blocklog) /
+				cfg->rgsize;
 
 	if (!cli->rgcount)
 		cfg->rgcount += XFS_RESERVED_ZONES;
@@ -4576,7 +4574,6 @@ static void
 calculate_zone_geometry(
 	struct mkfs_params	*cfg,
 	struct cli_params	*cli,
-	struct libxfs_init	*xi,
 	struct zone_topology	*zt)
 {
 	if (cfg->rtblocks == 0) {
@@ -4645,7 +4642,7 @@ _("rgsize (%s) not a multiple of fs blk size (%d)\n"),
 	}
 
 	if (cli->rtsize || cli->rgcount)
-		adjust_nr_zones(cfg, cli, xi, zt);
+		adjust_nr_zones(cfg, cli, zt);
 
 	if (cfg->rgcount < XFS_MIN_ZONES)  {
 		fprintf(stderr,
@@ -4984,7 +4981,6 @@ static uint64_t
 calc_concurrency_logblocks(
 	struct mkfs_params	*cfg,
 	struct cli_params	*cli,
-	struct libxfs_init	*xi,
 	unsigned int		max_tx_bytes)
 {
 	uint64_t		log_bytes;
@@ -4992,7 +4988,7 @@ calc_concurrency_logblocks(
 	unsigned int		new_logblocks;
 
 	if (cli->log_concurrency < 0) {
-		if (!ddev_is_solidstate(xi))
+		if (!ddev_is_solidstate(cli->xi))
 			goto out;
 
 		cli->log_concurrency = nr_cpus();
@@ -5160,7 +5156,6 @@ static void
 calculate_log_size(
 	struct mkfs_params	*cfg,
 	struct cli_params	*cli,
-	struct libxfs_init	*xi,
 	struct xfs_mount	*mp)
 {
 	struct xfs_sb		*sbp = &mp->m_sb;
@@ -5225,8 +5220,8 @@ _("external log device size %lld blocks too small, must be at least %lld blocks\
 		if (cfg->lsunit) {
 			uint64_t	max_logblocks;
 
-			max_logblocks = min(DTOBT(xi->log.size, cfg->blocklog),
-					    XFS_MAX_LOG_BLOCKS);
+			max_logblocks = min(XFS_MAX_LOG_BLOCKS,
+				DTOBT(cli->xi->log.size, cfg->blocklog));
 			align_log_size(cfg, cfg->lsunit, max_logblocks);
 		}
 
@@ -5261,7 +5256,7 @@ _("max log size %d smaller than min log size %d, filesystem is too small\n"),
 
 		if (cli->log_concurrency != 0)
 			cfg->logblocks = calc_concurrency_logblocks(cfg, cli,
-							xi, max_tx_bytes);
+							max_tx_bytes);
 
 		/* But don't go below a reasonable size */
 		cfg->logblocks = max(cfg->logblocks,
@@ -6135,12 +6130,12 @@ main(
 	 * dependent on device sizes. Once calculated, make sure everything
 	 * aligns to device geometry correctly.
 	 */
-	calculate_initial_ag_geometry(&cfg, &cli, &xi);
+	calculate_initial_ag_geometry(&cfg, &cli);
 	align_ag_geometry(&cfg, &ft);
 	if (cfg.sb_feat.zoned)
-		calculate_zone_geometry(&cfg, &cli, &xi, &zt);
+		calculate_zone_geometry(&cfg, &cli, &zt);
 	else
-		calculate_rtgroup_geometry(&cfg, &cli, &xi);
+		calculate_rtgroup_geometry(&cfg, &cli);
 
 	calculate_imaxpct(&cfg, &cli);
 
@@ -6164,7 +6159,7 @@ main(
 	 * With the mount set up, we can finally calculate the log size
 	 * constraints and do default size calculations and final validation
 	 */
-	calculate_log_size(&cfg, &cli, &xi, mp);
+	calculate_log_size(&cfg, &cli, mp);
 
 	finish_superblock_setup(&cfg, mp, sbp);
 
