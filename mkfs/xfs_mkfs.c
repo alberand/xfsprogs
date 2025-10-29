@@ -1607,34 +1607,6 @@ discard_blocks(int fd, uint64_t nsectors, int quiet)
 		printf("Done.\n");
 }
 
-static void
-reset_zones(
-	struct mkfs_params	*cfg,
-	int			fd,
-	uint64_t		start_sector,
-	uint64_t		nsectors,
-	int			quiet)
-{
-	struct blk_zone_range range = {
-		.sector		= start_sector,
-		.nr_sectors	= nsectors,
-	};
-
-	if (!quiet) {
-		printf("Resetting zones...");
-		fflush(stdout);
-	}
-
-	if (ioctl(fd, BLKRESETZONE, &range) < 0) {
-		if (!quiet)
-			printf(" FAILED (%d)\n", -errno);
-		exit(1);
-	}
-
-	if (!quiet)
-		printf("Done.\n");
-}
-
 static __attribute__((noreturn)) void
 illegal_option(
 	const char		*value,
@@ -3780,39 +3752,64 @@ discard_devices(
 	struct zone_topology	*zt,
 	int			quiet)
 {
-	/*
-	 * This function has to be called after libxfs has been initialized.
-	 */
-
 	if (!xi->data.isfile) {
 		uint64_t	nsectors = xi->data.size;
 
-		if (cfg->rtstart && zt->data.nr_zones) {
-			/*
-			 * Note that the zone reset here includes the LBA range
-			 * for the data device.
-			 *
-			 * This is because doing a single zone reset all on the
-			 * entire device (which the kernel automatically does
-			 * for us for a full device range) is a lot faster than
-			 * resetting each zone individually and resetting
-			 * the conventional zones used for the data device is a
-			 * no-op.
-			 */
-			reset_zones(cfg, xi->data.fd, 0,
-					cfg->rtstart + xi->rt.size, quiet);
+		if (cfg->rtstart && zt->data.nr_zones)
 			nsectors -= cfg->rtstart;
-		}
 		discard_blocks(xi->data.fd, nsectors, quiet);
 	}
-	if (xi->rt.dev && !xi->rt.isfile) {
-		if (zt->rt.nr_zones)
-			reset_zones(cfg, xi->rt.fd, 0, xi->rt.size, quiet);
-		else
-			discard_blocks(xi->rt.fd, xi->rt.size, quiet);
-	}
+	if (xi->rt.dev && !xi->rt.isfile && !zt->rt.nr_zones)
+		discard_blocks(xi->rt.fd, xi->rt.size, quiet);
 	if (xi->log.dev && xi->log.dev != xi->data.dev && !xi->log.isfile)
 		discard_blocks(xi->log.fd, xi->log.size, quiet);
+}
+
+static void
+reset_zones(
+	struct mkfs_params	*cfg,
+	struct libxfs_dev	*dev,
+	uint64_t		size,
+	bool			quiet)
+{
+	struct blk_zone_range range = {
+		.nr_sectors	= size,
+	};
+
+	if (!quiet) {
+		printf("Resetting zones...");
+		fflush(stdout);
+	}
+	if (ioctl(dev->fd, BLKRESETZONE, &range) < 0) {
+		if (!quiet)
+			printf(" FAILED (%d)\n", -errno);
+		exit(1);
+	}
+	if (!quiet)
+		printf("Done.\n");
+}
+
+static void
+reset_devices(
+	struct mkfs_params	*cfg,
+	struct libxfs_init	*xi,
+	struct zone_topology	*zt,
+	int			quiet)
+{
+	/*
+	 * Note that the zone reset here includes the conventional zones used
+	 * for the data device.
+	 *
+	 * It is done that way because doing a single zone reset all on the
+	 * entire device (which the kernel automatically does for us for a full
+	 * device range) is a lot faster than resetting each zone individually
+	 * and resetting the conventional zones used for the data device is a
+	 * no-op.
+	 */
+	if (!xi->data.isfile && zt->data.nr_zones && cfg->rtstart)
+		reset_zones(cfg, &xi->data, cfg->rtstart + xi->rt.size, quiet);
+	if (xi->rt.dev && !xi->rt.isfile && zt->rt.nr_zones)
+		reset_zones(cfg, &xi->rt, xi->rt.size, quiet);
 }
 
 static void
@@ -6196,13 +6193,10 @@ main(
 	/*
 	 * All values have been validated, discard the old device layout.
 	 */
-	if (cli.sb_feat.zoned && !discard) {
-		fprintf(stderr,
- _("-K not support for zoned file systems.\n"));
-		return 1;
-	}
 	if (discard && !dry_run)
-		discard_devices(&cfg, &xi, &zt, quiet);
+		discard_devices(&cfg, cli.xi, &zt, quiet);
+	if (cli.sb_feat.zoned && !dry_run)
+		reset_devices(&cfg, cli.xi, &zt, quiet);
 
 	/*
 	 * we need the libxfs buffer cache from here on in.
