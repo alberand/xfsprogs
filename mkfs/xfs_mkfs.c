@@ -1330,6 +1330,7 @@ nr_cpus(void)
 
 static void
 check_device_type(
+	struct cli_params	*cli,
 	struct libxfs_dev	*dev,
 	bool			no_size,
 	bool			dry_run,
@@ -1375,6 +1376,13 @@ check_device_type(
 			dev->isfile = 1;
 		else if (!dry_run)
 			dev->create = 1;
+
+		/*
+		 * Explicitly disable direct IO for image files so we don't
+		 * error out on sector size mismatches between the new
+		 * filesystem and the underlying host filesystem.
+		 */
+		cli->xi->flags &= ~LIBXFS_DIRECT;
 		return;
 	}
 
@@ -2378,21 +2386,14 @@ validate_sectorsize(
 	 * Before anything else, verify that we are correctly operating on
 	 * files or block devices and set the control parameters correctly.
 	 */
-	check_device_type(&cli->xi->data, !cli->dsize, dry_run, "data", "d");
+	check_device_type(cli, &cli->xi->data, !cli->dsize, dry_run,
+			"data", "d");
 	if (!cli->loginternal)
-		check_device_type(&cli->xi->log, !cli->logsize, dry_run, "log",
-				"l");
+		check_device_type(cli, &cli->xi->log, !cli->logsize, dry_run,
+				"log", "l");
 	if (cli->xi->rt.name)
-		check_device_type(&cli->xi->rt, !cli->rtsize, dry_run, "RT",
-				"r");
-
-	/*
-	 * Explicitly disable direct IO for image files so we don't error out on
-	 * sector size mismatches between the new filesystem and the underlying
-	 * host filesystem.
-	 */
-	if (cli->xi->data.isfile || cli->xi->log.isfile || cli->xi->rt.isfile)
-		cli->xi->flags &= ~LIBXFS_DIRECT;
+		check_device_type(cli, &cli->xi->rt, !cli->rtsize, dry_run,
+				"RT", "r");
 
 	memset(ft, 0, sizeof(*ft));
 	get_topology(cli->xi, ft, force_overwrite);
