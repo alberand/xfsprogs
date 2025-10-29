@@ -2395,8 +2395,7 @@ validate_sectorsize(
 		check_device_type(cli, &cli->xi->rt, !cli->rtsize, dry_run,
 				"RT", "r");
 
-	memset(ft, 0, sizeof(*ft));
-	get_topology(cli->xi, ft, force_overwrite);
+	libxfs_get_topology(cli->xi, ft, force_overwrite);
 
 	/* set configured sector sizes in preparation for checks */
 	if (!cli->sectorsize) {
