@@ -2546,6 +2546,28 @@ struct zone_topology {
 #define ZONES_PER_IOCTL			16384
 
 static void
+zone_validate_capacity(
+	struct zone_info	*zi,
+	__u64			capacity,
+	bool			conventional)
+{
+	if (conventional && zi->zone_capacity != zi->zone_size) {
+		fprintf(stderr, _("Zone capacity equal to Zone size required for conventional zones.\n"));
+		exit(1);
+	}
+
+	if (zi->zone_capacity > zi->zone_size) {
+		fprintf(stderr, _("Zone capacity larger than zone size!\n"));
+		exit(1);
+	}
+
+	if (zi->zone_capacity != capacity) {
+		fprintf(stderr, _("Inconsistent zone capacity!\n"));
+		exit(1);
+	}
+}
+
+static void
 report_zones(
 	const char		*name,
 	struct zone_info	*zi)
@@ -2621,6 +2643,11 @@ _("Inconsistent zone size!\n"));
 
 			switch (zones[i].type) {
 			case BLK_ZONE_TYPE_CONVENTIONAL:
+				if (!zi->zone_capacity)
+					zi->zone_capacity = zones[i].capacity;
+				zone_validate_capacity(zi, zones[i].capacity,
+						       true);
+
 				/*
 				 * We can only use the conventional space at the
 				 * start of the device for metadata, so don't
@@ -2632,6 +2659,11 @@ _("Inconsistent zone size!\n"));
 					zi->nr_conv_zones++;
 				break;
 			case BLK_ZONE_TYPE_SEQWRITE_REQ:
+				if (!found_seq)
+					zi->zone_capacity = zones[i].capacity;
+				zone_validate_capacity(zi, zones[i].capacity,
+						       false);
+
 				found_seq = true;
 				break;
 			case BLK_ZONE_TYPE_SEQWRITE_PREF:
@@ -2641,19 +2673,6 @@ _("Sequential write preferred zones not supported.\n"));
 			default:
 				fprintf(stderr,
 _("Unknown zone type (0x%x) found.\n"), zones[i].type);
-				exit(1);
-			}
-
-			if (!n) {
-				zi->zone_capacity = zones[i].capacity;
-				if (zi->zone_capacity > zi->zone_size) {
-					fprintf(stderr,
-_("Zone capacity larger than zone size!\n"));
-					exit(1);
-				}
-			} else if (zones[i].capacity != zi->zone_capacity) {
-				fprintf(stderr,
-_("Inconsistent zone capacity!\n"));
 				exit(1);
 			}
 
@@ -2681,11 +2700,6 @@ validate_zoned(
 			if (!zt->data.nr_conv_zones) {
 				fprintf(stderr,
 _("Data devices requires conventional zones.\n"));
-				usage();
-			}
-			if (zt->data.zone_capacity != zt->data.zone_size) {
-				fprintf(stderr,
-_("Zone capacity equal to Zone size required for conventional zones.\n"));
 				usage();
 			}
 
