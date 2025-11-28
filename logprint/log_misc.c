@@ -510,23 +510,22 @@ xlog_print_trans_buffer(
 }
 
 static int
-xlog_print_trans_qoff(char **ptr, uint len)
+xlog_print_trans_qoff(
+	char			**ptr,
+	uint			len)
 {
-    xfs_qoff_logformat_t *f;
-    xfs_qoff_logformat_t lbuf;
+	struct xfs_qoff_logformat qlf;
 
-    memmove(&lbuf, *ptr, min(sizeof(xfs_qoff_logformat_t), len));
-    f = &lbuf;
-    *ptr += len;
-    if (len >= sizeof(xfs_qoff_logformat_t)) {
-	printf(_("QOFF:  #regs: %d    flags: 0x%x\n"), f->qf_size, f->qf_flags);
+	memmove(&qlf, *ptr, min(sizeof(qlf), len));
+	*ptr += len;
+	if (len < sizeof(qlf)) {
+		printf(_("QOFF: Not enough data to decode further\n"));
+		return 1;
+	}
+	printf(_("QOFF:  #regs: %d    flags: 0x%x\n"),
+			qlf.qf_size, qlf.qf_flags);
 	return 0;
-    } else {
-	printf(_("QOFF: Not enough data to decode further\n"));
-	return 1;
-    }
-}	/* xlog_print_trans_qoff */
-
+}
 
 static void
 xlog_print_trans_inode_core(
