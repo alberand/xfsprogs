@@ -29,33 +29,34 @@ static xlog_split_item_t *split_list = NULL;
 void
 print_xlog_op_line(void)
 {
-    printf("--------------------------------------"
-	   "--------------------------------------\n");
-}	/* print_xlog_op_line */
+	printf("--------------------------------------"
+	       "--------------------------------------\n");
+}
 
 static void
 print_xlog_xhdr_line(void)
 {
-    printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-	   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
-}	/* print_xlog_xhdr_line */
+	printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+	       "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+}
 
 void
 print_xlog_record_line(void)
 {
-    printf("======================================"
-	   "======================================\n");
-}	/* print_xlog_record_line */
+	printf("======================================"
+	       "======================================\n");
+}
 
 void
 print_stars(void)
 {
-    printf("***********************************"
-	   "***********************************\n");
-}	/* print_stars */
+	printf("***********************************"
+	       "***********************************\n");
+}
 
 void
-print_hex_dump(char *ptr, int len) {
+print_hex_dump(char *ptr, int len)
+{
 	int i = 0;
 
 	for (i = 0; i < len; i++) {
@@ -73,7 +74,8 @@ print_hex_dump(char *ptr, int len) {
 }
 
 bool
-is_printable(char *ptr, int len) {
+is_printable(char *ptr, int len)
+{
 	int i = 0;
 
 	for (i = 0; i < len; i++)
@@ -83,7 +85,8 @@ is_printable(char *ptr, int len) {
 }
 
 void
-print_or_dump(char *ptr, int len) {
+print_or_dump(char *ptr, int len)
+{
 	if (is_printable(ptr, len))
 		printf("%.*s\n", len, ptr);
 	else
