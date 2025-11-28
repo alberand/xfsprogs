@@ -1388,48 +1388,45 @@ xlog_print_ext_header(
 /* for V2 logs read each extra hdr and print it out */
 static int
 xlog_print_extended_headers(
-	int			fd,
-	int			len,
-	xfs_daddr_t		*blkno,
-	xlog_rec_header_t	*hdr,
-	int 			*ret_num_hdrs,
-	xlog_rec_ext_header_t	**ret_xhdrs)
+	int				fd,
+	int				len,
+	xfs_daddr_t			*blkno,
+	struct xlog_rec_header		*hdr,
+	int 				*ret_num_hdrs,
+	struct xlog_rec_ext_header	**ret_xhdrs)
 {
-	int			i;
-	int 			num_hdrs;
-	int 			num_required;
-	xlog_rec_ext_header_t	*xhdr;
+	int 				num_hdrs, num_required;
+	struct xlog_rec_ext_header	*xhdr;
+	int				i;
 
 	num_required = howmany(len, XLOG_HEADER_CYCLE_SIZE);
 	num_hdrs = be32_to_cpu(hdr->h_size) / XLOG_HEADER_CYCLE_SIZE;
 	if (be32_to_cpu(hdr->h_size) % XLOG_HEADER_CYCLE_SIZE)
 		num_hdrs++;
 
-	if (num_required > num_hdrs) {
-	    print_xlog_bad_reqd_hdrs((*blkno)-1, num_required, num_hdrs);
-	}
+	if (num_required > num_hdrs)
+		print_xlog_bad_reqd_hdrs(*blkno - 1, num_required, num_hdrs);
 
 	if (num_hdrs == 1) {
-	    free(*ret_xhdrs);
-	    *ret_xhdrs = NULL;
-	    *ret_num_hdrs = 1;
-	    return 0;
+		free(*ret_xhdrs);
+		*ret_xhdrs = NULL;
+		*ret_num_hdrs = 1;
+		return 0;
 	}
 
-	if (*ret_xhdrs == NULL || num_hdrs > *ret_num_hdrs) {
-	    xlog_reallocate_xhdrs(num_hdrs, ret_xhdrs);
-	}
-
+	if (*ret_xhdrs == NULL || num_hdrs > *ret_num_hdrs)
+		xlog_reallocate_xhdrs(num_hdrs, ret_xhdrs);
 	*ret_num_hdrs = num_hdrs;
 
 	/* don't include 1st header */
 	for (i = 1, xhdr = *ret_xhdrs; i < num_hdrs; i++, (*blkno)++, xhdr++) {
-	    if (xlog_print_ext_header(fd, len, *blkno, xhdr, i == num_hdrs - 1))
-	        return 1;
+		if (xlog_print_ext_header(fd, len, *blkno, xhdr,
+				i == num_hdrs - 1))
+			return 1;
 	}
+
 	return 0;
 }
-
 
 /*
  * This code is gross and needs to be rewritten.
