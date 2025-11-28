@@ -504,42 +504,6 @@ xlog_print_trans_inode_core(
     }
 }
 
-static void
-xlog_print_dir2_sf(
-	struct xlog	*log,
-	xfs_dir2_sf_hdr_t *sfp,
-	int		size)
-{
-	__be64		pino;	/* parent inode nr */
-	xfs_ino_t	ino;
-	int		count;
-	int		i;
-	char		namebuf[257];
-	xfs_dir2_sf_entry_t	*sfep;
-
-	printf(_("SHORTFORM DIRECTORY size %d\n"),
-		size);
-	/* bail out for now */
-
-	return;
-
-	printf(_("SHORTFORM DIRECTORY size %d count %d\n"),
-	       size, sfp->count);
-	memmove(&pino, &(sfp->parent), sizeof(pino));
-	printf(_(".. ino 0x%llx\n"), (unsigned long long) be64_to_cpu(pino));
-
-	count = sfp->count;
-	sfep = xfs_dir2_sf_firstentry(sfp);
-	for (i = 0; i < count; i++) {
-		ino = libxfs_dir2_sf_get_ino(log->l_mp, sfp, sfep);
-		memmove(namebuf, (sfep->name), sfep->namelen);
-		namebuf[sfep->namelen] = '\0';
-		printf(_("%s ino 0x%llx namelen %d\n"),
-		       namebuf, (unsigned long long)ino, sfep->namelen);
-		sfep = libxfs_dir2_sf_nextentry(log->l_mp, sfp, sfep);
-	}
-}
-
 static int
 xlog_print_trans_inode(
 	struct xlog		*log,
@@ -643,7 +607,7 @@ xlog_print_trans_inode(
 	    case XFS_ILOG_DDATA:
 		printf(_("LOCAL inode data\n"));
 		if (mode == S_IFDIR)
-		    xlog_print_dir2_sf(log, (xfs_dir2_sf_hdr_t *)*ptr, size);
+		    printf(_("SHORTFORM DIRECTORY size %d\n"), size);
 		break;
 	    default:
 		ASSERT((f->ilf_fields & XFS_ILOG_DFORK) == 0);
@@ -672,8 +636,6 @@ xlog_print_trans_inode(
 		break;
 	    case XFS_ILOG_ADATA:
 		printf(_("LOCAL attr data\n"));
-		if (mode == S_IFDIR)
-		    xlog_print_dir2_sf(log, (xfs_dir2_sf_hdr_t *)*ptr, size);
 		break;
 	    default:
 		ASSERT((f->ilf_fields & XFS_ILOG_AFORK) == 0);
