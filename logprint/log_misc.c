@@ -902,6 +902,69 @@ print_lsn(
 		BLOCK_LSN(be64_to_cpu(*lsn)));
 }
 
+static int
+xlog_print_region(
+	struct xlog		*log,
+	char			**ptr,
+	struct xlog_op_header	*ophdr,
+	int			*i,
+	int			num_ops,
+	bool			continued)
+{
+	uint32_t		len = be32_to_cpu(ophdr->oh_len);
+
+	if (*(uint *)*ptr == XFS_TRANS_HEADER_MAGIC)
+		return xlog_print_trans_header(ptr, len);
+
+	switch (*(unsigned short *)*ptr) {
+	case XFS_LI_BUF:
+		return xlog_print_trans_buffer(ptr, len, i, num_ops);
+	case XFS_LI_ICREATE:
+		return xlog_print_trans_icreate(ptr, len, i, num_ops);
+	case XFS_LI_INODE:
+		return xlog_print_trans_inode(log, ptr, len, i, num_ops,
+				continued);
+	case XFS_LI_DQUOT:
+		return xlog_print_trans_dquot(ptr, len, i, num_ops);
+	case XFS_LI_EFI_RT:
+	case XFS_LI_EFI:
+		return xlog_print_trans_efi(ptr, len, continued);
+	case XFS_LI_EFD_RT:
+	case XFS_LI_EFD:
+		return xlog_print_trans_efd(ptr, len);
+	case XFS_LI_ATTRI:
+		return xlog_print_trans_attri(ptr, len, i);
+	case XFS_LI_ATTRD:
+		return xlog_print_trans_attrd(ptr, len);
+	case XFS_LI_RUI_RT:
+	case XFS_LI_RUI:
+		return xlog_print_trans_rui(ptr, len, continued);
+	case XFS_LI_RUD_RT:
+	case XFS_LI_RUD:
+		return xlog_print_trans_rud(ptr, len);
+	case XFS_LI_CUI_RT:
+	case XFS_LI_CUI:
+		return xlog_print_trans_cui(ptr, len, continued);
+	case XFS_LI_CUD_RT:
+	case XFS_LI_CUD:
+		return xlog_print_trans_cud(ptr, len);
+	case XFS_LI_BUI:
+		return xlog_print_trans_bui(ptr, len, continued);
+	case XFS_LI_BUD:
+		return xlog_print_trans_bud(ptr, len);
+	case XFS_LI_XMI:
+		return xlog_print_trans_xmi(ptr, len, continued);
+	case XFS_LI_XMD:
+		return xlog_print_trans_xmd(ptr, len);
+	case XFS_LI_QUOTAOFF:
+		return xlog_print_trans_qoff(ptr, len);
+	case XLOG_UNMOUNT_TYPE:
+		printf(_("Unmount filesystem\n"));
+		return 0;
+	default:
+		return -1;
+	}
+}
 
 static int
 xlog_print_record(
@@ -1046,118 +1109,9 @@ xlog_print_record(
 	}
 
 	if (be32_to_cpu(op_head->oh_len) != 0) {
-	    if (*(uint *)ptr == XFS_TRANS_HEADER_MAGIC) {
-		skip = xlog_print_trans_header(&ptr,
-					be32_to_cpu(op_head->oh_len));
-	    } else {
-		switch (*(unsigned short *)ptr) {
-		    case XFS_LI_BUF: {
-			skip = xlog_print_trans_buffer(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					&i, num_ops);
-			break;
-		    }
-		    case XFS_LI_ICREATE: {
-			skip = xlog_print_trans_icreate(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					&i, num_ops);
-			break;
-		    }
-		    case XFS_LI_INODE: {
-			skip = xlog_print_trans_inode(log, &ptr,
-					be32_to_cpu(op_head->oh_len),
-					&i, num_ops, continued);
-			break;
-		    }
-		    case XFS_LI_DQUOT: {
-			skip = xlog_print_trans_dquot(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					&i, num_ops);
-			break;
-		    }
-		    case XFS_LI_EFI_RT:
-		    case XFS_LI_EFI: {
-			skip = xlog_print_trans_efi(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					continued);
-			break;
-		    }
-		    case XFS_LI_EFD_RT:
-		    case XFS_LI_EFD: {
-			skip = xlog_print_trans_efd(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XFS_LI_ATTRI: {
-			skip = xlog_print_trans_attri(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					&i);
-			break;
-		    }
-		    case XFS_LI_ATTRD: {
-			skip = xlog_print_trans_attrd(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XFS_LI_RUI_RT:
-		    case XFS_LI_RUI: {
-			skip = xlog_print_trans_rui(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					continued);
-			break;
-		    }
-		    case XFS_LI_RUD_RT:
-		    case XFS_LI_RUD: {
-			skip = xlog_print_trans_rud(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XFS_LI_CUI_RT:
-		    case XFS_LI_CUI: {
-			skip = xlog_print_trans_cui(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					continued);
-			break;
-		    }
-		    case XFS_LI_CUD_RT:
-		    case XFS_LI_CUD: {
-			skip = xlog_print_trans_cud(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XFS_LI_BUI: {
-			skip = xlog_print_trans_bui(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					continued);
-			break;
-		    }
-		    case XFS_LI_BUD: {
-			skip = xlog_print_trans_bud(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XFS_LI_XMI: {
-			skip = xlog_print_trans_xmi(&ptr,
-					be32_to_cpu(op_head->oh_len),
-					continued);
-			break;
-		    }
-		    case XFS_LI_XMD: {
-			skip = xlog_print_trans_xmd(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XFS_LI_QUOTAOFF: {
-			skip = xlog_print_trans_qoff(&ptr,
-					be32_to_cpu(op_head->oh_len));
-			break;
-		    }
-		    case XLOG_UNMOUNT_TYPE: {
-			printf(_("Unmount filesystem\n"));
-			skip = 0;
-			break;
-		    }
-		    default: {
+		skip = xlog_print_region(log, &ptr, op_head, &i, num_ops,
+				continued);
+		if (skip == -1) {
 			if (bad_hdr_warn && !lost_context) {
 				fprintf(stderr,
 			_("%s: unknown log operation type (%x)\n"),
@@ -1173,11 +1127,10 @@ xlog_print_record(
 			skip = 0;
 			ptr += be32_to_cpu(op_head->oh_len);
 			lost_context = 0;
-		    }
-		} /* switch */
-	    } /* else */
-	    if (skip != 0)
-		xlog_print_add_to_trans(be32_to_cpu(op_head->oh_tid), skip);
+		}
+
+		if (skip)
+			xlog_print_add_to_trans(be32_to_cpu(op_head->oh_tid), skip);
 	}
     }
     printf("\n");
