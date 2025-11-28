@@ -1268,40 +1268,47 @@ xlog_print_rec_xhead(
 }
 
 static void
-print_xlog_bad_zeroed(xfs_daddr_t blkno)
+print_xlog_bad_zeroed(
+	xfs_daddr_t		blkno)
 {
 	print_stars();
 	printf(_("* ERROR: found data after zeroed blocks block=%-21lld  *\n"),
 		(long long)blkno);
 	print_stars();
 	if (print_exit)
-	    xlog_exit("Bad log - data after zeroed blocks");
-}	/* print_xlog_bad_zeroed */
+		xlog_exit("Bad log - data after zeroed blocks");
+}
 
 static void
-print_xlog_bad_header(xfs_daddr_t blkno, char *buf)
+print_xlog_bad_header(
+	xfs_daddr_t		blkno,
+	char			*buf)
 {
 	print_stars();
 	printf(_("* ERROR: header cycle=%-11d block=%-21lld        *\n"),
 		xlog_get_cycle(buf), (long long)blkno);
 	print_stars();
 	if (print_exit)
-	    xlog_exit("Bad log record header");
-}	/* print_xlog_bad_header */
+		xlog_exit("Bad log record header");
+}
 
 static void
-print_xlog_bad_data(xfs_daddr_t blkno)
+print_xlog_bad_data(
+	xfs_daddr_t		blkno)
 {
 	print_stars();
 	printf(_("* ERROR: data block=%-21lld                             *\n"),
 		(long long)blkno);
 	print_stars();
 	if (print_exit)
-	    xlog_exit("Bad data in log");
-}	/* print_xlog_bad_data */
+		xlog_exit("Bad data in log");
+}
 
 static void
-print_xlog_bad_reqd_hdrs(xfs_daddr_t blkno, int num_reqd, int num_hdrs)
+print_xlog_bad_reqd_hdrs(
+	xfs_daddr_t		blkno,
+	int			num_reqd,
+	int			num_hdrs)
 {
 	print_stars();
 	printf(_("* ERROR: for header block=%lld\n"
@@ -1310,8 +1317,8 @@ print_xlog_bad_reqd_hdrs(xfs_daddr_t blkno, int num_reqd, int num_hdrs)
 		(long long)blkno, num_reqd, num_hdrs);
 	print_stars();
 	if (print_exit)
-	    xlog_exit(_("Not enough headers for data length."));
-}	/* print_xlog_bad_reqd_hdrs */
+		xlog_exit(_("Not enough headers for data length."));
+}
 
 static void
 xlog_reallocate_xhdrs(int num_hdrs, xlog_rec_ext_header_t **ret_xhdrs)
