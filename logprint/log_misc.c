@@ -17,14 +17,14 @@
 
 static int logBBsize;
 
-typedef struct xlog_split_item {
+struct xlog_split_item {
 	struct xlog_split_item	*si_next;
 	struct xlog_split_item	*si_prev;
 	xlog_tid_t		si_xtid;
 	int			si_skip;
-} xlog_split_item_t;
+};
 
-static xlog_split_item_t *split_list = NULL;
+static struct xlog_split_item *split_list;
 
 void
 print_xlog_op_line(void)
@@ -139,55 +139,57 @@ xlog_print_op_header(
 }
 
 static void
-xlog_print_add_to_trans(xlog_tid_t	tid,
-			int		skip)
+xlog_print_add_to_trans(
+	xlog_tid_t		tid,
+	int			skip)
 {
-    xlog_split_item_t *item;
+	struct xlog_split_item	*item;
 
-    item	  = (xlog_split_item_t *)calloc(1, sizeof(xlog_split_item_t));
-    item->si_xtid  = tid;
-    item->si_skip = skip;
-    item->si_next = split_list;
-    item->si_prev = NULL;
-    if (split_list)
-	split_list->si_prev = item;
-    split_list	  = item;
-}	/* xlog_print_add_to_trans */
-
+	item = calloc(1, sizeof(*item));
+	item->si_xtid = tid;
+	item->si_skip = skip;
+	item->si_next = split_list;
+	if (split_list)
+		split_list->si_prev = item;
+	split_list = item;
+}
 
 static int
-xlog_print_find_tid(xlog_tid_t tid, uint was_cont)
+xlog_print_find_tid(
+	xlog_tid_t		tid,
+	uint			was_cont)
 {
-    xlog_split_item_t *listp = split_list;
+	struct xlog_split_item	*listp = split_list;
 
-    if (!split_list) {
-	if (was_cont != 0)	/* Not first time we have used this tid */
-	    return 1;
-	else
-	    return 0;
-    }
-    while (listp) {
-	if (listp->si_xtid == tid)
-	    break;
-	listp = listp->si_next;
-    }
-    if (!listp)  {
-	return 0;
-    }
-    if (--listp->si_skip == 0) {
-	if (listp == split_list) {		/* delete at head */
-	    split_list = listp->si_next;
-	    if (split_list)
-		split_list->si_prev = NULL;
-	} else {
-	    if (listp->si_next)
-		listp->si_next->si_prev = listp->si_prev;
-	    listp->si_prev->si_next = listp->si_next;
+	if (!split_list) {
+		if (was_cont)	/* Not first time we have used this tid */
+			return 1;
+		return 0;
 	}
-	free(listp);
-    }
-    return 1;
-}	/* xlog_print_find_tid */
+
+	while (listp) {
+		if (listp->si_xtid == tid)
+			break;
+		listp = listp->si_next;
+	}
+	if (!listp)
+		return 0;
+
+	if (--listp->si_skip == 0) {
+		if (listp == split_list) {		/* delete at head */
+			split_list = listp->si_next;
+			if (split_list)
+				split_list->si_prev = NULL;
+		} else {
+			if (listp->si_next)
+				listp->si_next->si_prev = listp->si_prev;
+			listp->si_prev->si_next = listp->si_next;
+		}
+		free(listp);
+	}
+
+	return 1;
+}
 
 static int
 xlog_print_trans_header(char **ptr, int len)
