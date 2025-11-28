@@ -422,84 +422,92 @@ xlog_print_buf_data(
 }
 
 static int
-xlog_print_trans_buffer(char **ptr, int len, int *i, int num_ops)
+xlog_print_trans_buffer(
+	char			**ptr,
+	int			len,
+	int			*i,
+	int			num_ops)
 {
-    xfs_buf_log_format_t *f;
-    xlog_op_header_t	 *head = NULL;
-    int			 num, skip;
-    int			 super_block = 0;
-    int64_t			 blkno;
-    xfs_buf_log_format_t lbuf;
-    int			 size, blen, map_size, struct_size;
-    unsigned short	 flags;
+	struct xfs_buf_log_format blf;
+	struct xlog_op_header	*ophdr = NULL;
+	int			num, skip;
+	int			super_block = 0;
+	int64_t			blkno;
+	int			size, blen, map_size, struct_size;
+	unsigned short		flags;
 
-    /*
-     * memmove to ensure 8-byte alignment for the long longs in
-     * buf_log_format_t structure
-     */
-    memmove(&lbuf, *ptr, min(sizeof(xfs_buf_log_format_t), len));
-    f = &lbuf;
-    *ptr += len;
+	/*
+	 * memmove to ensure 8-byte alignment for the long longs in
+	 * struct xfs_buf_log_format.
+	 */
+	memmove(&blf, *ptr, min(sizeof(blf), len));
+	*ptr += len;
 
-    ASSERT(f->blf_type == XFS_LI_BUF);
-    printf("BUF:  ");
-    blkno = f->blf_blkno;
-    size = f->blf_size;
-    blen = f->blf_len;
-    map_size = f->blf_map_size;
-    flags = f->blf_flags;
+	ASSERT(blf.blf_type == XFS_LI_BUF);
+	printf("BUF:  ");
+	blkno = blf.blf_blkno;
+	size = blf.blf_size;
+	blen = blf.blf_len;
+	map_size = blf.blf_map_size;
+	flags = blf.blf_flags;
 
-    /*
-     * size of the format header is dependent on the size of the bitmap, not
-     * the size of the in-memory structure. Hence the slightly obtuse
-     * calculation.
-     */
-    struct_size = offsetof(struct xfs_buf_log_format, blf_map_size) + map_size;
-
-    if (len >= struct_size) {
+	/*
+	 * size of the format header is dependent on the size of the bitmap, not
+	 * the size of the in-memory structure. Hence the slightly obtuse
+	 * calculation.
+	 */
+	struct_size = offsetof(struct xfs_buf_log_format, blf_map_size) +
+			map_size;
+	if (len < struct_size) {
+		ASSERT(len >= 4);	/* must have at least 4 bytes if != 0 */
+		printf(_("#regs: %d   Not printing rest of data\n"), blf.blf_size);
+		return size;
+	}
 	ASSERT((len - sizeof(struct_size)) % sizeof(int) == 0);
 	printf(_("#regs: %d   start blkno: %lld (0x%llx)  len: %d  bmap size: %d  flags: 0x%x\n"),
-	       size, (long long)blkno, (unsigned long long)blkno, blen, map_size, flags);
+		size,
+		(long long)blkno,
+		(unsigned long long)blkno,
+		blen,
+		map_size,
+		flags);
+
 	if (blkno == 0)
-	    super_block = 1;
-    } else {
-	ASSERT(len >= 4);	/* must have at least 4 bytes if != 0 */
-	printf(_("#regs: %d   Not printing rest of data\n"), f->blf_size);
-	return size;
-    }
-    num = size-1;
+		super_block = 1;
 
-    /* Check if all regions in this log item were in the given LR ptr */
-    if (*i+num > num_ops-1) {
-	skip = num - (num_ops-1-*i);
-	num = num_ops-1-*i;
-    } else {
-	skip = 0;
-    }
-    while (num-- > 0) {
-	(*i)++;
-	head = (xlog_op_header_t *)*ptr;
-	xlog_print_op_header(head, *i, ptr);
-	if (super_block) {
-		xlog_print_sb_buf(head, *ptr);
-		super_block = 0;
-	} else if (be32_to_cpu(*(__be32 *)(*ptr)) == XFS_AGI_MAGIC) {
-		if (!xlog_print_agi_buf(head, *ptr))
-			continue;
-	} else if (be32_to_cpu(*(__be32 *)(*ptr)) == XFS_AGF_MAGIC) {
-		xlog_print_agf_buf(head, *ptr);
-	} else if (be32_to_cpu(*(__be32 *)(*ptr)) == XFS_DQUOT_MAGIC) {
-		xlog_print_dquot_buf(head, *ptr);
+	/* Check if all regions in this log item were in the given LR ptr */
+	num = size-1;
+	if (*i + num > num_ops - 1) {
+		skip = num - (num_ops - 1 - *i);
+		num = num_ops - 1 - *i;
 	} else {
-		xlog_print_buf_data(head, *ptr);
+		skip = 0;
 	}
-	*ptr += be32_to_cpu(head->oh_len);
-    }
-    if (head && head->oh_flags & XLOG_CONTINUE_TRANS)
-	skip++;
-    return skip;
-}	/* xlog_print_trans_buffer */
 
+	while (num-- > 0) {
+		(*i)++;
+		ophdr = (struct xlog_op_header *)*ptr;
+		xlog_print_op_header(ophdr, *i, ptr);
+		if (super_block) {
+			xlog_print_sb_buf(ophdr, *ptr);
+			super_block = 0;
+		} else if (be32_to_cpu(*(__be32 *)(*ptr)) == XFS_AGI_MAGIC) {
+			if (!xlog_print_agi_buf(ophdr, *ptr))
+				continue;
+		} else if (be32_to_cpu(*(__be32 *)(*ptr)) == XFS_AGF_MAGIC) {
+			xlog_print_agf_buf(ophdr, *ptr);
+		} else if (be32_to_cpu(*(__be32 *)(*ptr)) == XFS_DQUOT_MAGIC) {
+			xlog_print_dquot_buf(ophdr, *ptr);
+		} else {
+			xlog_print_buf_data(ophdr, *ptr);
+		}
+		*ptr += be32_to_cpu(ophdr->oh_len);
+	}
+
+	if (ophdr && ophdr->oh_flags & XLOG_CONTINUE_TRANS)
+		skip++;
+	return skip;
+}
 
 static int
 xlog_print_trans_qoff(char **ptr, uint len)
