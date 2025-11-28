@@ -98,44 +98,45 @@ print_or_dump(char *ptr, int len)
  * a log operation header.
  */
 void
-xlog_print_op_header(xlog_op_header_t	*op_head,
-		     int		i,
-		     char		**ptr)
+xlog_print_op_header(
+	struct xlog_op_header	*ophdr,
+	int			i,
+	char			**ptr)
 {
-    xlog_op_header_t hbuf;
+	struct xlog_op_header	hbuf;
 
-    /*
-     * memmove because on 64/n32, partial reads can cause the op_head
-     * pointer to come in pointing to an odd-numbered byte
-     */
-    memmove(&hbuf, op_head, sizeof(xlog_op_header_t));
-    op_head = &hbuf;
-    *ptr += sizeof(xlog_op_header_t);
-    printf(_("Oper (%d): tid: %x  len: %d  clientid: %s  "), i,
-	    be32_to_cpu(op_head->oh_tid),
-	    be32_to_cpu(op_head->oh_len),
-	    (op_head->oh_clientid == XFS_TRANSACTION ? "TRANS" :
-	    (op_head->oh_clientid == XFS_LOG ? "LOG" : "ERROR")));
-    printf(_("flags: "));
-    if (op_head->oh_flags) {
-	if (op_head->oh_flags & XLOG_START_TRANS)
-	    printf("START ");
-	if (op_head->oh_flags & XLOG_COMMIT_TRANS)
-	    printf("COMMIT ");
-	if (op_head->oh_flags & XLOG_WAS_CONT_TRANS)
-	    printf("WAS_CONT ");
-	if (op_head->oh_flags & XLOG_UNMOUNT_TRANS)
-	    printf("UNMOUNT ");
-	if (op_head->oh_flags & XLOG_CONTINUE_TRANS)
-	    printf("CONTINUE ");
-	if (op_head->oh_flags & XLOG_END_TRANS)
-	    printf("END ");
-    } else {
-	printf(_("none"));
-    }
-    printf("\n");
-}	/* xlog_print_op_header */
+	/*
+	 * memmove because on 64/n32, partial reads can cause the op_head
+	 * pointer to come in pointing to an odd-numbered byte
+	 */
+	memmove(&hbuf, ophdr, sizeof(hbuf));
+	ophdr = &hbuf;
+	*ptr += sizeof(hbuf);
 
+	printf(_("Oper (%d): tid: %x  len: %d  clientid: %s  "), i,
+		be32_to_cpu(ophdr->oh_tid),
+		be32_to_cpu(ophdr->oh_len),
+		(ophdr->oh_clientid == XFS_TRANSACTION ? "TRANS" :
+		(ophdr->oh_clientid == XFS_LOG ? "LOG" : "ERROR")));
+	printf(_("flags: "));
+	if (ophdr->oh_flags) {
+		if (ophdr->oh_flags & XLOG_START_TRANS)
+			printf("START ");
+		if (ophdr->oh_flags & XLOG_COMMIT_TRANS)
+			printf("COMMIT ");
+		if (ophdr->oh_flags & XLOG_WAS_CONT_TRANS)
+			printf("WAS_CONT ");
+		if (ophdr->oh_flags & XLOG_UNMOUNT_TRANS)
+			printf("UNMOUNT ");
+		if (ophdr->oh_flags & XLOG_CONTINUE_TRANS)
+			printf("CONTINUE ");
+		if (ophdr->oh_flags & XLOG_END_TRANS)
+			printf("END ");
+	} else {
+		printf(_("none"));
+	}
+	printf("\n");
+}
 
 static void
 xlog_print_add_to_trans(xlog_tid_t	tid,
