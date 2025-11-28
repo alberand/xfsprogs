@@ -59,12 +59,6 @@ typedef struct xfs_buf_log_item {
 #define XFS_BLI_INODE_ALLOC_BUF		(1<<3)
 #define XFS_BLI_ORDERED			(1<<4)
 
-typedef struct xfs_qoff_logitem {
-	xfs_log_item_t		qql_item;	/* common portion */
-	struct xfs_qoff_logitem	*qql_start_lip;	/* qoff-start logitem, if any */
-	xfs_qoff_logformat_t	qql_format;	/* logged structure */
-} xfs_qoff_logitem_t;
-
 typedef struct xfs_trans {
 	unsigned int		t_log_res;	/* amt of log space resvd */
 	unsigned int		t_log_count;	/* count for perm log res */
