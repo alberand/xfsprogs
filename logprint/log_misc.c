@@ -1336,6 +1336,55 @@ xlog_reallocate_xhdrs(
 	}
 }
 
+static int
+xlog_print_ext_header(
+	int				fd,
+	int				len,
+	xfs_daddr_t			blkno,
+	struct xlog_rec_ext_header	*xhdr,
+	bool				last)
+{
+	char				xhbuf[XLOG_HEADER_SIZE];
+	struct xlog_rec_ext_header	*rbuf =
+		(struct xlog_rec_ext_header *)xhbuf;
+	int				j;
+
+	/* read one extra header blk */
+	if (read(fd, xhbuf, 512) == 0) {
+		printf(_("%s: physical end of log\n"), progname);
+		print_xlog_record_line();
+		/* reached the end */
+		return 1;
+	}
+
+	if (print_only_data) {
+		printf(_("BLKNO: %lld\n"), (long long)blkno);
+		xlog_recover_print_data(xhbuf, 512);
+	} else {
+		int		coverage_bb;
+
+		if (last) {
+			coverage_bb =
+				BTOBB(len) % (XLOG_HEADER_CYCLE_SIZE / BBSIZE);
+		} else {
+			coverage_bb = XLOG_HEADER_CYCLE_SIZE / BBSIZE;
+		}
+		xlog_print_rec_xhead(rbuf, coverage_bb);
+	}
+
+	/*
+	 * Copy from buffer into xhdrs array for later.
+	 *
+	 * We could endian convert here but then code later on will look
+	 * asymmetric with the single header case which does endian coversion on
+	 * access.
+	 */
+	xhdr->xh_cycle = rbuf->xh_cycle;
+	for (j = 0; j < XLOG_HEADER_CYCLE_SIZE / BBSIZE; j++)
+		xhdr->xh_cycle_data[j] = rbuf->xh_cycle_data[j];
+	return 0;
+}
+
 /* for V2 logs read each extra hdr and print it out */
 static int
 xlog_print_extended_headers(
@@ -1346,11 +1395,9 @@ xlog_print_extended_headers(
 	int 			*ret_num_hdrs,
 	xlog_rec_ext_header_t	**ret_xhdrs)
 {
-	int			i, j;
-	int			coverage_bb;
+	int			i;
 	int 			num_hdrs;
 	int 			num_required;
-	char			xhbuf[XLOG_HEADER_SIZE];
 	xlog_rec_ext_header_t	*xhdr;
 
 	num_required = howmany(len, XLOG_HEADER_CYCLE_SIZE);
@@ -1377,40 +1424,8 @@ xlog_print_extended_headers(
 
 	/* don't include 1st header */
 	for (i = 1, xhdr = *ret_xhdrs; i < num_hdrs; i++, (*blkno)++, xhdr++) {
-	    /* read one extra header blk */
-	    if (read(fd, xhbuf, 512) == 0) {
-		printf(_("%s: physical end of log\n"), progname);
-		print_xlog_record_line();
-		/* reached the end so return 1 */
-		return 1;
-	    }
-	    if (print_only_data) {
-		printf(_("BLKNO: %lld\n"), (long long)*blkno);
-		xlog_recover_print_data(xhbuf, 512);
-	    }
-	    else {
-		if (i == num_hdrs - 1) {
-		    /* last header */
-		    coverage_bb = BTOBB(len) %
-				    (XLOG_HEADER_CYCLE_SIZE / BBSIZE);
-		}
-		else {
-		    /* earliear header */
-		    coverage_bb = XLOG_HEADER_CYCLE_SIZE / BBSIZE;
-		}
-		xlog_print_rec_xhead((xlog_rec_ext_header_t*)xhbuf, coverage_bb);
-	    }
-
-	    /* Copy from buffer into xhdrs array for later.
-	     * Could endian convert here but then code later on
-	     * will look asymmetric with the 1 hdr normal case
-	     * which does endian coversion on access.
-	     */
-	    xhdr->xh_cycle = ((xlog_rec_ext_header_t*)xhbuf)->xh_cycle;
-	    for (j = 0; j < XLOG_HEADER_CYCLE_SIZE / BBSIZE; j++) {
-		xhdr->xh_cycle_data[j] =
-		    ((xlog_rec_ext_header_t*)xhbuf)->xh_cycle_data[j];
-	    }
+	    if (xlog_print_ext_header(fd, len, *blkno, xhdr, i == num_hdrs - 1))
+	        return 1;
 	}
 	return 0;
 }
