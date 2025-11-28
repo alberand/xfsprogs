@@ -1171,78 +1171,81 @@ xlog_print_record(
 }
 
 static int
-xlog_print_rec_head(xlog_rec_header_t *head, int *len, int bad_hdr_warn)
+xlog_print_rec_head(
+	struct xlog_rec_header	*head,
+	int			*len,
+	int			bad_hdr_warn)
 {
-    int i;
-    char uub[64];
-    int datalen,bbs;
+	int			datalen, bbs;
+	char			uub[64];
+	int			i;
 
-    if (print_no_print)
-	    return be32_to_cpu(head->h_num_logops);
+	if (print_no_print)
+		return be32_to_cpu(head->h_num_logops);
 
-    if (!head->h_magicno)
-	return ZEROED_LOG;
+	if (!head->h_magicno)
+		return ZEROED_LOG;
 
-    if (be32_to_cpu(head->h_magicno) != XLOG_HEADER_MAGIC_NUM) {
-	if (bad_hdr_warn)
-		printf(_("Header 0x%x wanted 0x%x\n"),
-			be32_to_cpu(head->h_magicno),
-			XLOG_HEADER_MAGIC_NUM);
-	return BAD_HEADER;
-    }
+	if (be32_to_cpu(head->h_magicno) != XLOG_HEADER_MAGIC_NUM) {
+		if (bad_hdr_warn) {
+			printf(_("Header 0x%x wanted 0x%x\n"),
+				be32_to_cpu(head->h_magicno),
+				XLOG_HEADER_MAGIC_NUM);
+		}
+		return BAD_HEADER;
+	}
 
-    /* check for cleared blocks written by xlog_clear_stale_blocks() */
-    if (!head->h_len && !head->h_crc && !head->h_prev_block &&
-	!head->h_num_logops && !head->h_size)
-	return CLEARED_BLKS;
+	/* check for cleared blocks written by xlog_clear_stale_blocks() */
+	if (!head->h_len && !head->h_crc && !head->h_prev_block &&
+	    !head->h_num_logops && !head->h_size)
+		return CLEARED_BLKS;
 
-    datalen=be32_to_cpu(head->h_len);
-    bbs=BTOBB(datalen);
+	datalen = be32_to_cpu(head->h_len);
+	bbs = BTOBB(datalen);
 
-    printf(_("cycle: %d	version: %d	"),
-	    be32_to_cpu(head->h_cycle),
-	    be32_to_cpu(head->h_version));
-    print_lsn("	lsn", &head->h_lsn);
-    print_lsn("	tail_lsn", &head->h_tail_lsn);
-    printf("\n");
-    printf(_("length of Log Record: %d	prev offset: %d		num ops: %d\n"),
-	   datalen,
-	    be32_to_cpu(head->h_prev_block),
-	    be32_to_cpu(head->h_num_logops));
-
-    if (print_overwrite) {
-	printf(_("cycle num overwrites: "));
-	for (i=0; i< min(bbs, XLOG_HEADER_CYCLE_SIZE / BBSIZE); i++)
-	    printf("%d - 0x%x  ",
-		    i,
-		    be32_to_cpu(head->h_cycle_data[i]));
+	printf(_("cycle: %d	version: %d	"),
+		be32_to_cpu(head->h_cycle),
+		be32_to_cpu(head->h_version));
+	print_lsn("	lsn", &head->h_lsn);
+	print_lsn("	tail_lsn", &head->h_tail_lsn);
 	printf("\n");
-    }
+	printf(_("length of Log Record: %d	prev offset: %d		num ops: %d\n"),
+		datalen,
+		be32_to_cpu(head->h_prev_block),
+		be32_to_cpu(head->h_num_logops));
 
-    platform_uuid_unparse(&head->h_fs_uuid, uub);
-    printf(_("uuid: %s   format: "), uub);
-    switch (be32_to_cpu(head->h_fmt)) {
+	if (print_overwrite) {
+		printf(_("cycle num overwrites: "));
+		for (i = 0; i < min(bbs, XLOG_HEADER_CYCLE_SIZE / BBSIZE); i++)
+			printf("%d - 0x%x  ",
+				i, be32_to_cpu(head->h_cycle_data[i]));
+		printf("\n");
+	}
+
+	platform_uuid_unparse(&head->h_fs_uuid, uub);
+	printf(_("uuid: %s   format: "), uub);
+	switch (be32_to_cpu(head->h_fmt)) {
 	case XLOG_FMT_UNKNOWN:
-	    printf(_("unknown\n"));
-	    break;
+		printf(_("unknown\n"));
+		break;
 	case XLOG_FMT_LINUX_LE:
-	    printf(_("little endian linux\n"));
-	    break;
+		printf(_("little endian linux\n"));
+		break;
 	case XLOG_FMT_LINUX_BE:
-	    printf(_("big endian linux\n"));
-	    break;
+		printf(_("big endian linux\n"));
+		break;
 	case XLOG_FMT_IRIX_BE:
-	    printf(_("big endian irix\n"));
-	    break;
+		printf(_("big endian irix\n"));
+		break;
 	default:
-	    printf("? (%d)\n", be32_to_cpu(head->h_fmt));
-	    break;
-    }
-    printf(_("h_size: %d\n"), be32_to_cpu(head->h_size));
+		printf("? (%d)\n", be32_to_cpu(head->h_fmt));
+		break;
+	}
+	printf(_("h_size: %d\n"), be32_to_cpu(head->h_size));
 
-    *len = be32_to_cpu(head->h_len);
-    return(be32_to_cpu(head->h_num_logops));
-}	/* xlog_print_rec_head */
+	*len = be32_to_cpu(head->h_len);
+	return(be32_to_cpu(head->h_num_logops));
+}
 
 static void
 xlog_print_rec_xhead(xlog_rec_ext_header_t *head, int coverage)
