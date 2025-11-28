@@ -1081,85 +1081,94 @@ xlog_print_record(
 	int			len,
 	int			*read_type,
 	char			**partial_buf,
-	xlog_rec_header_t	*rhead,
-	xlog_rec_ext_header_t	*xhdrs,
+	struct xlog_rec_header	*rhead,
+	struct xlog_rec_ext_header *xhdrs,
 	int			bad_hdr_warn)
 {
-    char		*buf, *ptr;
-    int			read_len;
-    bool		lost_context = false;
-    int			ret, i;
+	bool			lost_context = false;
+	char			*buf, *ptr;
+	int			read_len;
+	int			ret, i;
 
-    if (print_no_print)
-	    return NO_ERROR;
+	if (print_no_print)
+		return NO_ERROR;
 
-    if (!len) {
+	if (!len) {
+		printf("\n");
+		return NO_ERROR;
+	}
+
+	/* read_len must read up to some block boundary */
+	read_len = (int) BBTOB(BTOBB(len));
+
+	/* read_type => don't malloc() new buffer, use old one */
+	if (*read_type == FULL_READ) {
+		buf = malloc(read_len);
+		if (!buf) {
+			fprintf(stderr,
+	_("%s: xlog_print_record: malloc failed\n"), progname);
+			exit(1);
+		}
+		ptr = buf;
+	} else {
+		read_len -= *read_type;
+		buf = (char *)((intptr_t)(*partial_buf) +
+			(intptr_t)(*read_type));
+		ptr = *partial_buf;
+	}
+
+	ret = (int) read(fd, buf, read_len);
+	if (ret == -1) {
+		fprintf(stderr,
+	_("%s: xlog_print_record: read error\n"), progname);
+		exit(1);
+	}
+
+	/* Did we overflow the end? */
+	if (*read_type == FULL_READ &&
+	    BLOCK_LSN(be64_to_cpu(rhead->h_lsn)) + BTOBB(read_len) >=
+			logBBsize) {
+		*read_type = BBTOB(logBBsize -
+			BLOCK_LSN(be64_to_cpu(rhead->h_lsn))-1);
+		*partial_buf = buf;
+		return PARTIAL_READ;
+	}
+
+	/* Did we read everything? */
+	if ((ret == 0 && read_len != 0) || ret != read_len) {
+		*read_type = ret;
+		*partial_buf = buf;
+		return PARTIAL_READ;
+	}
+	if (*read_type != FULL_READ)
+		read_len += *read_type;
+
+	/*
+	 * Everything read in.  Start from beginning of buffer
+	 * Unpack the data, by putting the saved cycle-data back into the first
+	 * word of each BB.
+	 * Do some checks.
+	 */
+	buf = ptr;
+	for (i = 0; ptr < buf + read_len; ptr += BBSIZE, i++) {
+		if (!xlog_unpack_rec_header(rhead, xhdrs, ptr, read_type, i)) {
+			free(buf);
+			return -1;
+		}
+	}
+
+	ptr = buf;
+	for (i = 0; i < num_ops; i++) {
+		if (!xlog_print_op(log, &ptr, &i, num_ops, bad_hdr_warn,
+				&lost_context)) {
+			free(buf);
+			return BAD_HEADER;
+		}
+	}
 	printf("\n");
+	free(buf);
 	return NO_ERROR;
-    }
-
-    /* read_len must read up to some block boundary */
-    read_len = (int) BBTOB(BTOBB(len));
-
-    /* read_type => don't malloc() new buffer, use old one */
-    if (*read_type == FULL_READ) {
-	if ((ptr = buf = malloc(read_len)) == NULL) {
-	    fprintf(stderr, _("%s: xlog_print_record: malloc failed\n"), progname);
-	    exit(1);
-	}
-    } else {
-	read_len -= *read_type;
-	buf = (char *)((intptr_t)(*partial_buf) + (intptr_t)(*read_type));
-	ptr = *partial_buf;
-    }
-    if ((ret = (int) read(fd, buf, read_len)) == -1) {
-	fprintf(stderr, _("%s: xlog_print_record: read error\n"), progname);
-	exit(1);
-    }
-    /* Did we overflow the end? */
-    if (*read_type == FULL_READ &&
-	BLOCK_LSN(be64_to_cpu(rhead->h_lsn)) + BTOBB(read_len) >=
-		logBBsize) {
-	*read_type = BBTOB(logBBsize - BLOCK_LSN(be64_to_cpu(rhead->h_lsn))-1);
-	*partial_buf = buf;
-	return PARTIAL_READ;
-    }
-
-    /* Did we read everything? */
-    if ((ret == 0 && read_len != 0) || ret != read_len) {
-	*read_type = ret;
-	*partial_buf = buf;
-	return PARTIAL_READ;
-    }
-    if (*read_type != FULL_READ)
-	read_len += *read_type;
-
-    /* Everything read in.  Start from beginning of buffer
-     * Unpack the data, by putting the saved cycle-data back
-     * into the first word of each BB.
-     * Do some checks.
-     */
-    buf = ptr;
-    for (i = 0; ptr < buf + read_len; ptr += BBSIZE, i++) {
-	if (!xlog_unpack_rec_header(rhead, xhdrs, ptr, read_type, i)) {
-	    free(buf);
-	    return -1;
-	}
-    }
-
-    ptr = buf;
-    for (i = 0; i < num_ops; i++) {
-	if (!xlog_print_op(log, &ptr, &i, num_ops, bad_hdr_warn,
-			&lost_context)) {
-		free(buf);
-		return BAD_HEADER;
-	}
-    }
-    printf("\n");
-    free(buf);
-    return NO_ERROR;
-}	/* xlog_print_record */
-
+}
 
 static int
 xlog_print_rec_head(xlog_rec_header_t *head, int *len, int bad_hdr_warn)
