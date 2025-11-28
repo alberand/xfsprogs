@@ -966,6 +966,72 @@ xlog_print_region(
 	}
 }
 
+static bool
+xlog_print_op(
+	struct xlog		*log,
+	char			**ptr,
+	int			*i,
+	int			num_ops,
+	bool			bad_hdr_warn,
+	bool			*lost_context)
+{
+	struct xlog_op_header	*ophdr = (struct xlog_op_header *)*ptr;
+	bool			continued;
+	int			skip, n;
+
+	print_xlog_op_line();
+	xlog_print_op_header(ophdr, *i, ptr);
+
+	continued = (ophdr->oh_flags & XLOG_WAS_CONT_TRANS) ||
+		    (ophdr->oh_flags & XLOG_CONTINUE_TRANS);
+	if (continued && be32_to_cpu(ophdr->oh_len) == 0)
+		return true;
+
+	if (print_no_data) {
+		for (n = 0; n < be32_to_cpu(ophdr->oh_len); n++) {
+			printf("0x%02x ", (unsigned int)**ptr);
+			if (n % 16 == 15)
+				printf("\n");
+			ptr++;
+		}
+		printf("\n");
+		return true;
+	}
+
+	/* print transaction data */
+	if (xlog_print_find_tid(be32_to_cpu(ophdr->oh_tid),
+			ophdr->oh_flags & XLOG_WAS_CONT_TRANS)) {
+		printf(_("Left over region from split log item\n"));
+		/* Skip this leftover bit */
+		(*ptr) += be32_to_cpu(ophdr->oh_len);
+		/* We've lost context; don't complain if next one looks bad too */
+		*lost_context = true;
+		return true;
+	}
+
+	if (!ophdr->oh_len)
+		return true;
+
+	skip = xlog_print_region(log, ptr, ophdr, i, num_ops, continued);
+	if (skip == -1) {
+		if (bad_hdr_warn && !*lost_context) {
+			fprintf(stderr,
+	_("%s: unknown log operation type (%x)\n"),
+				progname, *(unsigned short *)*ptr);
+			if (print_exit)
+				return false;
+		} else {
+			printf(
+	_("Left over region from split log item\n"));
+		}
+		(*ptr) += be32_to_cpu(ophdr->oh_len);
+		*lost_context = false;
+	} else if (skip) {
+		xlog_print_add_to_trans(be32_to_cpu(ophdr->oh_tid), skip);
+	}
+	return true;
+}
+
 static int
 xlog_print_record(
 	struct xlog		*log,
@@ -979,8 +1045,9 @@ xlog_print_record(
 	int			bad_hdr_warn)
 {
     char		*buf, *ptr;
-    int			read_len, skip, lost_context = 0;
-    int			ret, n, i, j, k;
+    int			read_len;
+    bool		lost_context = false;
+    int			ret, i, j, k;
 
     if (print_no_print)
 	    return NO_ERROR;
@@ -1073,64 +1140,11 @@ xlog_print_record(
     }
 
     ptr = buf;
-    for (i=0; i<num_ops; i++) {
-	int continued;
-
-	xlog_op_header_t *op_head = (xlog_op_header_t *)ptr;
-
-	print_xlog_op_line();
-	xlog_print_op_header(op_head, i, &ptr);
-	continued = ((op_head->oh_flags & XLOG_WAS_CONT_TRANS) ||
-		     (op_head->oh_flags & XLOG_CONTINUE_TRANS));
-
-	if (continued && be32_to_cpu(op_head->oh_len) == 0)
-		continue;
-
-	if (print_no_data) {
-	    for (n = 0; n < be32_to_cpu(op_head->oh_len); n++) {
-		printf("0x%02x ", (unsigned int)*ptr);
-		if (n % 16 == 15)
-			printf("\n");
-		ptr++;
-	    }
-	    printf("\n");
-	    continue;
-	}
-
-	/* print transaction data */
-	if (xlog_print_find_tid(be32_to_cpu(op_head->oh_tid),
-				op_head->oh_flags & XLOG_WAS_CONT_TRANS)) {
-	    printf(_("Left over region from split log item\n"));
-	    /* Skip this leftover bit */
-	    ptr += be32_to_cpu(op_head->oh_len);
-	    /* We've lost context; don't complain if next one looks bad too */
-	    lost_context = 1;
-	    continue;
-	}
-
-	if (be32_to_cpu(op_head->oh_len) != 0) {
-		skip = xlog_print_region(log, &ptr, op_head, &i, num_ops,
-				continued);
-		if (skip == -1) {
-			if (bad_hdr_warn && !lost_context) {
-				fprintf(stderr,
-			_("%s: unknown log operation type (%x)\n"),
-					progname, *(unsigned short *)ptr);
-				if (print_exit) {
-					free(buf);
-					return BAD_HEADER;
-				}
-			} else {
-				printf(
-			_("Left over region from split log item\n"));
-			}
-			skip = 0;
-			ptr += be32_to_cpu(op_head->oh_len);
-			lost_context = 0;
-		}
-
-		if (skip)
-			xlog_print_add_to_trans(be32_to_cpu(op_head->oh_tid), skip);
+    for (i = 0; i < num_ops; i++) {
+	if (!xlog_print_op(log, &ptr, &i, num_ops, bad_hdr_warn,
+			&lost_context)) {
+		free(buf);
+		return BAD_HEADER;
 	}
     }
     printf("\n");
