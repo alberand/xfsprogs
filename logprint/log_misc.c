@@ -614,152 +614,153 @@ xlog_print_trans_inode_core(
 
 static int
 xlog_print_trans_inode(
-	struct xlog		*log,
-	char			**ptr,
-	int			len,
-	int			*i,
-	int			num_ops,
-	int			continued)
+	struct xlog			*log,
+	char				**ptr,
+	int				len,
+	int				*i,
+	int				num_ops,
+	int				continued)
 {
-	struct xfs_log_dinode	dino;
-	struct xlog_op_header	*op_head;
-	struct xfs_inode_log_format dst_lbuf;
-	struct xfs_inode_log_format src_lbuf;
-	struct xfs_inode_log_format *f;
+	struct xfs_log_dinode		dino;
+	struct xlog_op_header		*op_head;
+	struct xfs_inode_log_format	dst_lbuf;
+	struct xfs_inode_log_format	src_lbuf;
+	struct xfs_inode_log_format	*f;
 	int				mode;
 	int				size;
 	int				skip_count;
 
-    /*
-     * print inode type header region
-     *
-     * memmove to ensure 8-byte alignment for the long longs in
-     * struct xfs_inode_log_format structure
-     *
-     * len can be smaller than struct xfs_inode_log_format
-     * if format data is split over operations
-     */
-    memmove(&src_lbuf, *ptr, min(sizeof(src_lbuf), len));
-    (*i)++;					/* bump index */
-    *ptr += len;
-    if (!continued &&
-	(len == sizeof(struct xfs_inode_log_format_32) ||
-	 len == sizeof(struct xfs_inode_log_format))) {
+	/*
+	 * Print inode type header region.
+	 *
+	 * memmove to ensure 8-byte alignment for the long longs in
+	 * struct xfs_inode_log_format structure.
+	 *
+	 * len can be smaller than struct xfs_inode_log_format if format data
+	 * is split over operations.
+	 */
+	memmove(&src_lbuf, *ptr, min(sizeof(src_lbuf), len));
+	(*i)++;					/* bump index */
+	*ptr += len;
+	if (continued ||
+	    (len != sizeof(struct xfs_inode_log_format_32) &&
+	     len != sizeof(struct xfs_inode_log_format))) {
+		ASSERT(len >= 4);	/* must have at least 4 bytes if != 0 */
+		f = (struct xfs_inode_log_format *)&src_lbuf;
+		printf(_("INODE: #regs: %d   Not printing rest of data\n"),
+			f->ilf_size);
+		return f->ilf_size;
+	}
+
 	f = xfs_inode_item_format_convert((char*)&src_lbuf, len, &dst_lbuf);
 	printf(_("INODE: "));
 	printf(_("#regs: %d   ino: 0x%llx  flags: 0x%x   dsize: %d\n"),
-	       f->ilf_size, (unsigned long long)f->ilf_ino,
-	       f->ilf_fields, f->ilf_dsize);
+		f->ilf_size,
+		(unsigned long long)f->ilf_ino,
+		f->ilf_fields,
+		f->ilf_dsize);
 	printf(_("        blkno: %lld  len: %d  boff: %d\n"),
-	       (long long)f->ilf_blkno, f->ilf_len, f->ilf_boffset);
-    } else {
-	ASSERT(len >= 4);	/* must have at least 4 bytes if != 0 */
-	f = (struct xfs_inode_log_format *)&src_lbuf;
-	printf(_("INODE: #regs: %d   Not printing rest of data\n"),
-	       f->ilf_size);
-	return f->ilf_size;
-    }
+		(long long)f->ilf_blkno,
+		f->ilf_len,
+		f->ilf_boffset);
 
-    skip_count = f->ilf_size-1;
+	skip_count = f->ilf_size - 1;
+	if (*i >= num_ops)			/* end of LR */
+		return skip_count;
 
-    if (*i >= num_ops)			/* end of LR */
-	    return skip_count;
+	/* core inode comes 2nd */
+	op_head = (struct xlog_op_header *)*ptr;
+	xlog_print_op_header(op_head, *i, ptr);
 
-    /* core inode comes 2nd */
-    op_head = (xlog_op_header_t *)*ptr;
-    xlog_print_op_header(op_head, *i, ptr);
+	if (op_head->oh_flags & XLOG_CONTINUE_TRANS)
+		return skip_count;
 
-    if (op_head->oh_flags & XLOG_CONTINUE_TRANS)  {
-        return skip_count;
-    }
+	memmove(&dino, *ptr, sizeof(dino));
+	mode = dino.di_mode & S_IFMT;
+	size = (int)dino.di_size;
+	xlog_print_trans_inode_core(&dino);
+	*ptr += xfs_log_dinode_size(log->l_mp);
+	skip_count--;
 
-    memmove(&dino, *ptr, sizeof(dino));
-    mode = dino.di_mode & S_IFMT;
-    size = (int)dino.di_size;
-    xlog_print_trans_inode_core(&dino);
-    *ptr += xfs_log_dinode_size(log->l_mp);
-    skip_count--;
+	switch (f->ilf_fields & (XFS_ILOG_DEV | XFS_ILOG_UUID)) {
+	case XFS_ILOG_DEV:
+		printf(_("DEV inode: no extra region\n"));
+		break;
+	case XFS_ILOG_UUID:
+		printf(_("UUID inode: no extra region\n"));
+		break;
+	}
 
-    switch (f->ilf_fields & (XFS_ILOG_DEV | XFS_ILOG_UUID)) {
-    case XFS_ILOG_DEV:
-	printf(_("DEV inode: no extra region\n"));
-	break;
-    case XFS_ILOG_UUID:
-	printf(_("UUID inode: no extra region\n"));
-	break;
-    }
+	/* Only the inode core is logged */
+	if (f->ilf_size == 2)
+		return 0;
 
-    /* Only the inode core is logged */
-    if (f->ilf_size == 2)
+	ASSERT(f->ilf_size <= 4);
+	ASSERT((f->ilf_size == 3) || (f->ilf_fields & XFS_ILOG_AFORK));
+
+	/* does anything come next */
+	op_head = (struct xlog_op_header *)*ptr;
+
+	if (f->ilf_fields & XFS_ILOG_DFORK) {
+		if (*i == num_ops-1)
+			return skip_count;
+		(*i)++;
+		xlog_print_op_header(op_head, *i, ptr);
+
+		switch (f->ilf_fields & XFS_ILOG_DFORK) {
+		case XFS_ILOG_DEXT:
+			printf(_("EXTENTS inode data\n"));
+			break;
+		case XFS_ILOG_DBROOT:
+			printf(_("BTREE inode data\n"));
+			break;
+		case XFS_ILOG_DDATA:
+			printf(_("LOCAL inode data\n"));
+			if (mode == S_IFDIR)
+				printf(_("SHORTFORM DIRECTORY size %d\n"),
+					size);
+			break;
+		default:
+			ASSERT((f->ilf_fields & XFS_ILOG_DFORK) == 0);
+			break;
+		}
+
+		*ptr += be32_to_cpu(op_head->oh_len);
+		if (op_head->oh_flags & XLOG_CONTINUE_TRANS)
+			return skip_count;
+		op_head = (struct xlog_op_header *)*ptr;
+		skip_count--;
+	}
+
+	if (f->ilf_fields & XFS_ILOG_AFORK) {
+		if (*i == num_ops-1)
+			return skip_count;
+		(*i)++;
+		xlog_print_op_header(op_head, *i, ptr);
+
+		switch (f->ilf_fields & XFS_ILOG_AFORK) {
+		case XFS_ILOG_AEXT:
+			printf(_("EXTENTS attr data\n"));
+			break;
+		case XFS_ILOG_ABROOT:
+			printf(_("BTREE attr data\n"));
+			break;
+		case XFS_ILOG_ADATA:
+			printf(_("LOCAL attr data\n"));
+			break;
+		default:
+			ASSERT((f->ilf_fields & XFS_ILOG_AFORK) == 0);
+			break;
+		}
+		*ptr += be32_to_cpu(op_head->oh_len);
+		if (op_head->oh_flags & XLOG_CONTINUE_TRANS)
+			return skip_count;
+		skip_count--;
+	}
+
+	ASSERT(skip_count == 0);
 	return 0;
-
-    ASSERT(f->ilf_size <= 4);
-    ASSERT((f->ilf_size == 3) || (f->ilf_fields & XFS_ILOG_AFORK));
-
-    /* does anything come next */
-    op_head = (xlog_op_header_t *)*ptr;
-
-    if (f->ilf_fields & XFS_ILOG_DFORK) {
-	    if (*i == num_ops-1)
-	        return skip_count;
-	    (*i)++;
-	    xlog_print_op_header(op_head, *i, ptr);
-
-	    switch (f->ilf_fields & XFS_ILOG_DFORK) {
-	    case XFS_ILOG_DEXT:
-		printf(_("EXTENTS inode data\n"));
-		break;
-	    case XFS_ILOG_DBROOT:
-		printf(_("BTREE inode data\n"));
-		break;
-	    case XFS_ILOG_DDATA:
-		printf(_("LOCAL inode data\n"));
-		if (mode == S_IFDIR)
-		    printf(_("SHORTFORM DIRECTORY size %d\n"), size);
-		break;
-	    default:
-		ASSERT((f->ilf_fields & XFS_ILOG_DFORK) == 0);
-		break;
-	    }
-
-	    *ptr += be32_to_cpu(op_head->oh_len);
-	    if (op_head->oh_flags & XLOG_CONTINUE_TRANS)
-	        return skip_count;
-	    op_head = (xlog_op_header_t *)*ptr;
-	    skip_count--;
-    }
-
-    if (f->ilf_fields & XFS_ILOG_AFORK) {
-	    if (*i == num_ops-1)
-	        return skip_count;
-	    (*i)++;
-	    xlog_print_op_header(op_head, *i, ptr);
-
-	    switch (f->ilf_fields & XFS_ILOG_AFORK) {
-	    case XFS_ILOG_AEXT:
-		printf(_("EXTENTS attr data\n"));
-		break;
-	    case XFS_ILOG_ABROOT:
-		printf(_("BTREE attr data\n"));
-		break;
-	    case XFS_ILOG_ADATA:
-		printf(_("LOCAL attr data\n"));
-		break;
-	    default:
-		ASSERT((f->ilf_fields & XFS_ILOG_AFORK) == 0);
-		break;
-	    }
-	    *ptr += be32_to_cpu(op_head->oh_len);
-	    if (op_head->oh_flags & XLOG_CONTINUE_TRANS)
-	        return skip_count;
-	    skip_count--;
-    }
-
-    ASSERT(skip_count == 0);
-
-    return 0;
-}	/* xlog_print_trans_inode */
-
+}
 
 static int
 xlog_print_trans_dquot(char **ptr, int len, int *i, int num_ops)
