@@ -763,59 +763,68 @@ xlog_print_trans_inode(
 }
 
 static int
-xlog_print_trans_dquot(char **ptr, int len, int *i, int num_ops)
+xlog_print_trans_dquot(
+	char			**ptr,
+	int			len,
+	int			*i,
+	int			num_ops)
 {
-    xfs_dq_logformat_t		*f;
-    xfs_dq_logformat_t		lbuf = {0};
-    struct xfs_disk_dquot	ddq;
-    xlog_op_header_t		*head = NULL;
-    int				num, skip;
+	struct xfs_dq_logformat	*f;
+	struct xfs_dq_logformat lbuf = {0};
+	struct xfs_disk_dquot	ddq;
+	struct xlog_op_header	*head = NULL;
+	int			num, skip;
 
-    /*
-     * print dquot header region
-     *
-     * memmove to ensure 8-byte alignment for the long longs in
-     * xfs_dq_logformat_t structure
-     */
-    memmove(&lbuf, *ptr, min(sizeof(xfs_dq_logformat_t), len));
-    f = &lbuf;
-    (*i)++;					/* bump index */
-    *ptr += len;
+	/*
+	 * Print dquot header region.
+	 *
+	 * memmove to ensure 8-byte alignment for the long longs in
+	 * the xfs_dq_logformat structure.
+	 */
+	memmove(&lbuf, *ptr, min(sizeof(struct xfs_dq_logformat), len));
+	f = &lbuf;
+	(*i)++;					/* bump index */
+		*ptr += len;
 
-    if (len == sizeof(xfs_dq_logformat_t)) {
-	printf(_("#regs: %d   id: 0x%x"), f->qlf_size, f->qlf_id);
+	if (len != sizeof(struct xfs_dq_logformat)) {
+		ASSERT(len >= 4);	/* must have at least 4 bytes if != 0 */
+		printf(_("DQUOT: #regs: %d   Not printing rest of data\n"),
+			f->qlf_size);
+		return f->qlf_size;
+	}
+
+	printf(_("#regs: %d   id: 0x%x"),
+		f->qlf_size,
+		f->qlf_id);
 	printf(_("  blkno: %lld  len: %d  boff: %d\n"),
-		(long long)f->qlf_blkno, f->qlf_len, f->qlf_boffset);
-    } else {
-	ASSERT(len >= 4);	/* must have at least 4 bytes if != 0 */
-	printf(_("DQUOT: #regs: %d   Not printing rest of data\n"),
-		f->qlf_size);
-	return f->qlf_size;
-    }
-    num = f->qlf_size-1;
+		(long long)f->qlf_blkno,
+		f->qlf_len,
+		f->qlf_boffset);
 
-    /* Check if all regions in this log item were in the given LR ptr */
-    if (*i+num > num_ops-1) {
-	skip = num - (num_ops-1-*i);
-	num = num_ops-1-*i;
-    } else {
-	skip = 0;
-    }
+	/* Check if all regions in this log item were in the given LR ptr */
+	num = f->qlf_size - 1;
+	if (*i + num > num_ops - 1) {
+		skip = num - (num_ops - 1 - *i);
+		num = num_ops - 1 - *i;
+	} else {
+		skip = 0;
+	}
 
-    while (num-- > 0) {
-	head = (xlog_op_header_t *)*ptr;
-	xlog_print_op_header(head, *i, ptr);
-	ASSERT(be32_to_cpu(head->oh_len) == sizeof(struct xfs_disk_dquot));
-	memmove(&ddq, *ptr, sizeof(struct xfs_disk_dquot));
-	printf(_("DQUOT: magic 0x%hx flags 0%ho\n"),
-	       be16_to_cpu(ddq.d_magic), ddq.d_type);
-	*ptr += be32_to_cpu(head->oh_len);
-    }
-    if (head && head->oh_flags & XLOG_CONTINUE_TRANS)
-	skip++;
-    return skip;
-}	/* xlog_print_trans_dquot */
-
+	while (num-- > 0) {
+		head = (struct xlog_op_header *)*ptr;
+		xlog_print_op_header(head, *i, ptr);
+		ASSERT(be32_to_cpu(head->oh_len) ==
+			sizeof(struct xfs_disk_dquot));
+		memmove(&ddq, *ptr, sizeof(struct xfs_disk_dquot));
+		printf(_("DQUOT: magic 0x%hx flags 0%ho\n"),
+			be16_to_cpu(ddq.d_magic),
+			ddq.d_type);
+		*ptr += be32_to_cpu(head->oh_len);
+	}
+	if (head && (head->oh_flags & XLOG_CONTINUE_TRANS))
+		skip++;
+	return skip;
+}
 
 STATIC int
 xlog_print_trans_icreate(
