@@ -1032,6 +1032,47 @@ xlog_print_op(
 	return true;
 }
 
+static bool
+xlog_unpack_rec_header(
+	struct xlog_rec_header	*rhead,
+	struct xlog_rec_ext_header *xhdrs,
+	char			*ptr,
+	int			*read_type,
+	int			i)
+{
+	__be32			*cycle = (__be32 *)ptr;
+
+	/*
+	 * Data should not have magicno as first word as it should be cycle
+	 * number.
+	 */
+	if (*cycle == cpu_to_be32(XLOG_HEADER_MAGIC_NUM))
+		 return false;
+
+	/* Verify cycle number. */
+	if (be32_to_cpu(rhead->h_cycle) != be32_to_cpu(*cycle) &&
+	    (*read_type == FULL_READ ||
+	     be32_to_cpu(rhead->h_cycle) + 1 != be32_to_cpu(*cycle)))
+		return false;
+
+	/* Copy back the data from the header */
+	if (i < XLOG_HEADER_CYCLE_SIZE / BBSIZE) {
+		/* from 1st header */
+		*cycle = rhead->h_cycle_data[i];
+	} else {
+		int		j, k;
+
+		ASSERT(xhdrs != NULL);
+
+		/* from extra headers */
+		j = i / (XLOG_HEADER_CYCLE_SIZE / BBSIZE);
+		k = i % (XLOG_HEADER_CYCLE_SIZE / BBSIZE);
+		*cycle = xhdrs[j - 1].xh_cycle_data[k];
+	}
+
+	return true;
+}
+
 static int
 xlog_print_record(
 	struct xlog		*log,
@@ -1047,7 +1088,7 @@ xlog_print_record(
     char		*buf, *ptr;
     int			read_len;
     bool		lost_context = false;
-    int			ret, i, j, k;
+    int			ret, i;
 
     if (print_no_print)
 	    return NO_ERROR;
@@ -1100,43 +1141,10 @@ xlog_print_record(
      */
     buf = ptr;
     for (i = 0; ptr < buf + read_len; ptr += BBSIZE, i++) {
-	xlog_rec_header_t *rechead = (xlog_rec_header_t *)ptr;
-
-	/* sanity checks */
-	if (be32_to_cpu(rechead->h_magicno) == XLOG_HEADER_MAGIC_NUM) {
-	    /* data should not have magicno as first word
-	     * as it should by cycle#
-	     */
+	if (!xlog_unpack_rec_header(rhead, xhdrs, ptr, read_type, i)) {
 	    free(buf);
 	    return -1;
-	} else {
-	    /* verify cycle#
-	     * FIXME: cycle+1 should be a macro pv#900369
-	     */
-	    if (be32_to_cpu(rhead->h_cycle) !=
-			be32_to_cpu(*(__be32 *)ptr)) {
-		if ((*read_type == FULL_READ) ||
-		    (be32_to_cpu(rhead->h_cycle) + 1 !=
-				be32_to_cpu(*(__be32 *)ptr))) {
-			free(buf);
-			return -1;
-		}
-	    }
 	}
-
-	/* copy back the data from the header */
-	if (i < XLOG_HEADER_CYCLE_SIZE / BBSIZE) {
-		/* from 1st header */
-		*(__be32 *)ptr = rhead->h_cycle_data[i];
-	}
-	else {
-		ASSERT(xhdrs != NULL);
-		/* from extra headers */
-		j = i / (XLOG_HEADER_CYCLE_SIZE / BBSIZE);
-		k = i % (XLOG_HEADER_CYCLE_SIZE / BBSIZE);
-		*(__be32 *)ptr = xhdrs[j-1].xh_cycle_data[k];
-	}
-
     }
 
     ptr = buf;
