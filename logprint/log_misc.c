@@ -1248,22 +1248,24 @@ xlog_print_rec_head(
 }
 
 static void
-xlog_print_rec_xhead(xlog_rec_ext_header_t *head, int coverage)
+xlog_print_rec_xhead(
+	struct xlog_rec_ext_header	*head,
+	int				coverage)
 {
-    int i;
+	int				i;
 
-    print_xlog_xhdr_line();
-    printf(_("extended-header: cycle: %d\n"), be32_to_cpu(head->xh_cycle));
+	print_xlog_xhdr_line();
+	printf(_("extended-header: cycle: %d\n"),
+		be32_to_cpu(head->xh_cycle));
 
-    if (print_overwrite) {
-	printf(_("cycle num overwrites: "));
-	for (i = 0; i < coverage; i++)
-	    printf("%d - 0x%x  ",
-		    i,
-		    be32_to_cpu(head->xh_cycle_data[i]));
-	printf("\n");
-    }
-}	/* xlog_print_rec_xhead */
+	if (print_overwrite) {
+		printf(_("cycle num overwrites: "));
+		for (i = 0; i < coverage; i++)
+			printf("%d - 0x%x  ",
+				i, be32_to_cpu(head->xh_cycle_data[i]));
+		printf("\n");
+	}
+}
 
 static void
 print_xlog_bad_zeroed(xfs_daddr_t blkno)
