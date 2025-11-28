@@ -1431,214 +1431,216 @@ xlog_print_extended_headers(
 /*
  * This code is gross and needs to be rewritten.
  */
-void xfs_log_print(struct xlog  *log,
-		   int          fd,
-		   int		print_block_start)
+void xfs_log_print(
+	struct xlog  			*log,
+	int				fd,
+	int				print_block_start)
 {
-    char			hbuf[XLOG_HEADER_SIZE];
-    xlog_rec_header_t		*hdr = (xlog_rec_header_t *)&hbuf[0];
-    xlog_rec_ext_header_t 	*xhdrs = NULL;
-    int				num_ops, len, num_hdrs = 1;
-    xfs_daddr_t			block_end = 0, block_start, blkno, error;
-    xfs_daddr_t			zeroed_blkno = 0, cleared_blkno = 0;
-    int				read_type = FULL_READ;
-    char			*partial_buf;
-    int				zeroed = 0;
-    int				cleared = 0;
-    int				first_hdr_found = 0;
+	char				hbuf[XLOG_HEADER_SIZE];
+	struct xlog_rec_header		*hdr = (struct xlog_rec_header *)&hbuf[0];
+	struct xlog_rec_ext_header 	*xhdrs = NULL;
+	int				num_ops, len, num_hdrs = 1;
+	xfs_daddr_t			block_end = 0, block_start, blkno, error;
+	xfs_daddr_t			zeroed_blkno = 0, cleared_blkno = 0;
+	int				read_type = FULL_READ;
+	char				*partial_buf;
+	int				zeroed = 0;
+	int				cleared = 0;
+	int				first_hdr_found = 0;
 
-    logBBsize = log->l_logBBsize;
+	logBBsize = log->l_logBBsize;
 
-    /*
-     * Normally, block_start and block_end are the same value since we
-     * are printing the entire log.  However, if the start block is given,
-     * we still end at the end of the logical log.
-     */
-    if ((error = xlog_print_find_oldest(log, &block_end))) {
-	fprintf(stderr, _("%s: problem finding oldest LR\n"), progname);
-	return;
-    }
-    if (print_block_start == -1)
-	block_start = block_end;
-    else
-	block_start = print_block_start;
-    xlog_print_lseek(log, fd, block_start, SEEK_SET);
-    blkno = block_start;
-
-    for (;;) {
-	if (read(fd, hbuf, 512) == 0) {
-	    printf(_("%s: physical end of log\n"), progname);
-	    print_xlog_record_line();
-	    break;
-	}
-	if (print_only_data) {
-	    printf(_("BLKNO: %lld\n"), (long long)blkno);
-	    xlog_recover_print_data(hbuf, 512);
-	    blkno++;
-	    goto loop;
-	}
-	num_ops = xlog_print_rec_head(hdr, &len, first_hdr_found);
-	blkno++;
-
-	if (zeroed && num_ops != ZEROED_LOG) {
-	    printf(_("%s: after %d zeroed blocks\n"), progname, zeroed);
-	    /* once we find zeroed blocks - that's all we expect */
-	    print_xlog_bad_zeroed(blkno-1);
-	    /* reset count since we're assuming previous zeroed blocks
-	     * were bad
-	     */
-	    zeroed = 0;
+	/*
+	 * Normally, block_start and block_end are the same value since we are
+	 * printing the entire log.  However, if the start block is given, we
+	 * still end at the end of the logical log.
+	 */
+	error = xlog_print_find_oldest(log, &block_end);
+	if (error) {
+		fprintf(stderr, _("%s: problem finding oldest LR\n"),
+			progname);
+		return;
 	}
 
-	if (num_ops == ZEROED_LOG ||
-	    num_ops == CLEARED_BLKS ||
-	    num_ops == BAD_HEADER) {
-	    if (num_ops == ZEROED_LOG) {
-		if (zeroed == 0)
-		    zeroed_blkno = blkno-1;
-		zeroed++;
-	    }
-	    else if (num_ops == CLEARED_BLKS) {
-		if (cleared == 0)
-		    cleared_blkno = blkno-1;
-		cleared++;
-	    } else {
-		if (!first_hdr_found)
-			block_start = blkno;
-		else
-			print_xlog_bad_header(blkno-1, hbuf);
-	    }
+	if (print_block_start == -1)
+		block_start = block_end;
+	else
+		block_start = print_block_start;
+	xlog_print_lseek(log, fd, block_start, SEEK_SET);
+	blkno = block_start;
 
-	    goto loop;
-	}
+	for (;;) {
+		if (read(fd, hbuf, 512) == 0) {
+			printf(_("%s: physical end of log\n"), progname);
+			print_xlog_record_line();
+			break;
+		}
+		if (print_only_data) {
+			printf(_("BLKNO: %lld\n"), (long long)blkno);
+			xlog_recover_print_data(hbuf, 512);
+			blkno++;
+			goto loop;
+		}
+		num_ops = xlog_print_rec_head(hdr, &len, first_hdr_found);
+		blkno++;
 
-	if (be32_to_cpu(hdr->h_version) == 2) {
-	    if (xlog_print_extended_headers(fd, len, &blkno, hdr, &num_hdrs, &xhdrs) != 0)
-		break;
-	}
+		if (zeroed && num_ops != ZEROED_LOG) {
+			printf(_("%s: after %d zeroed blocks\n"),
+				progname, zeroed);
+			/* once we find zeroed blocks - that's all we expect */
+			print_xlog_bad_zeroed(blkno - 1);
+			/*
+			 * Reset count since we're assuming previous zeroed
+			 * blocks were bad.
+			 */
+			zeroed = 0;
+		}
 
-	error =	xlog_print_record(log, fd, num_ops, len, &read_type, &partial_buf,
-				  hdr, xhdrs, first_hdr_found);
-	first_hdr_found++;
-	switch (error) {
-	    case 0: {
-		blkno += BTOBB(len);
-		if (print_block_start != -1 &&
-		    blkno >= block_end)		/* If start specified, we */
-			goto end;		/* end early */
-		break;
-	    }
-	    case -1: {
-		print_xlog_bad_data(blkno-1);
-		if (print_block_start != -1 &&
-		    blkno >= block_end)		/* If start specified, */
-			goto end;		/* we end early */
-		xlog_print_lseek(log, fd, blkno, SEEK_SET);
-		goto loop;
-	    }
-	    case PARTIAL_READ: {
+		switch (num_ops) {
+		case ZEROED_LOG:
+			if (zeroed == 0)
+				zeroed_blkno = blkno - 1;
+			zeroed++;
+			goto loop;
+		case CLEARED_BLKS:
+			if (cleared == 0)
+				cleared_blkno = blkno - 1;
+			cleared++;
+			goto loop;
+		case BAD_HEADER:
+			if (!first_hdr_found)
+				block_start = blkno;
+			else
+				print_xlog_bad_header(blkno - 1, hbuf);
+			goto loop;
+		default:
+			break;
+		}
+
+		if (be32_to_cpu(hdr->h_version) == 2 &&
+		    xlog_print_extended_headers(fd, len, &blkno, hdr, &num_hdrs,
+				&xhdrs) != 0)
+			break;
+
+		error =	xlog_print_record(log, fd, num_ops, len, &read_type,
+				&partial_buf, hdr, xhdrs, first_hdr_found);
+		first_hdr_found++;
+		switch (error) {
+		case 0:
+			blkno += BTOBB(len);
+			if (print_block_start != -1 &&
+			    blkno >= block_end)		/* If start specified, we */
+				goto end;		/* end early */
+			break;
+		case -1:
+			print_xlog_bad_data(blkno-1);
+			if (print_block_start != -1 &&
+			    blkno >= block_end)		/* If start specified, */
+				goto end;		/* we end early */
+			xlog_print_lseek(log, fd, blkno, SEEK_SET);
+			goto loop;
+		case PARTIAL_READ:
+			print_xlog_record_line();
+			printf(_("%s: physical end of log\n"), progname);
+			print_xlog_record_line();
+			blkno = 0;
+			xlog_print_lseek(log, fd, 0, SEEK_SET);
+			/*
+			 * We may have hit the end of the log when we started at 0.
+			 * In this case, just end.
+			 */
+			if (block_start == 0)
+				goto end;
+			goto partial_log_read;
+		default:
+			xlog_panic(_("illegal value"));
+		}
 		print_xlog_record_line();
-		printf(_("%s: physical end of log\n"), progname);
-		print_xlog_record_line();
+loop:
+		if (blkno >= logBBsize) {
+			if (cleared) {
+				printf(_("%s: skipped %d cleared blocks in range: %lld - %lld\n"),
+					progname, cleared,
+					(long long)(cleared_blkno),
+					(long long)(cleared + cleared_blkno - 1));
+				if (cleared == logBBsize)
+					printf(_("%s: totally cleared log\n"), progname);
+				cleared = 0;
+			}
+			if (zeroed) {
+				printf(_("%s: skipped %d zeroed blocks in range: %lld - %lld\n"),
+					progname, zeroed,
+					(long long)(zeroed_blkno),
+					(long long)(zeroed + zeroed_blkno - 1));
+				if (zeroed == logBBsize)
+					printf(_("%s: totally zeroed log\n"), progname);
+				zeroed = 0;
+			}
+			printf(_("%s: physical end of log\n"), progname);
+			print_xlog_record_line();
+			break;
+		}
+	}
+
+	/* Do we need to print the first part of physical log? */
+	if (block_start != 0) {
 		blkno = 0;
 		xlog_print_lseek(log, fd, 0, SEEK_SET);
-		/*
-		 * We may have hit the end of the log when we started at 0.
-		 * In this case, just end.
-		 */
-		if (block_start == 0)
-			goto end;
-		goto partial_log_read;
-	    }
-	    default: xlog_panic(_("illegal value"));
-	}
-	print_xlog_record_line();
-loop:
-	if (blkno >= logBBsize) {
-	    if (cleared) {
-		printf(_("%s: skipped %d cleared blocks in range: %lld - %lld\n"),
-			progname, cleared,
-			(long long)(cleared_blkno),
-			(long long)(cleared + cleared_blkno - 1));
-		if (cleared == logBBsize)
-		    printf(_("%s: totally cleared log\n"), progname);
+		for (;;) {
+			if (read(fd, hbuf, 512) == 0)
+				xlog_panic(_("xlog_find_head: bad read"));
 
-		cleared=0;
-	    }
-	    if (zeroed) {
-		printf(_("%s: skipped %d zeroed blocks in range: %lld - %lld\n"),
-			progname, zeroed,
-			(long long)(zeroed_blkno),
-			(long long)(zeroed + zeroed_blkno - 1));
-		if (zeroed == logBBsize)
-		    printf(_("%s: totally zeroed log\n"), progname);
+			if (print_only_data) {
+				printf(_("BLKNO: %lld\n"), (long long)blkno);
+				xlog_recover_print_data(hbuf, 512);
+				blkno++;
+				goto loop2;
+			}
+			num_ops = xlog_print_rec_head(hdr, &len,
+				first_hdr_found);
+			blkno++;
 
-		zeroed=0;
-	    }
-	    printf(_("%s: physical end of log\n"), progname);
-	    print_xlog_record_line();
-	    break;
-	}
-    }
+			if (num_ops == ZEROED_LOG ||
+			    num_ops == CLEARED_BLKS ||
+			    num_ops == BAD_HEADER) {
+				/*
+				 * We only expect zeroed log entries or cleared
+				 * log entries at the end of the _physical_ log,
+				 * so treat them the same as bad blocks here.
+				 */
+				print_xlog_bad_header(blkno-1, hbuf);
+				if (blkno >= block_end)
+					break;
+				continue;
+			}
 
-    /* Do we need to print the first part of physical log? */
-    if (block_start != 0) {
-	blkno = 0;
-	xlog_print_lseek(log, fd, 0, SEEK_SET);
-	for (;;) {
-	    if (read(fd, hbuf, 512) == 0) {
-		xlog_panic(_("xlog_find_head: bad read"));
-	    }
-	    if (print_only_data) {
-		printf(_("BLKNO: %lld\n"), (long long)blkno);
-		xlog_recover_print_data(hbuf, 512);
-		blkno++;
-		goto loop2;
-	    }
-	    num_ops = xlog_print_rec_head(hdr, &len, first_hdr_found);
-	    blkno++;
-
-	    if (num_ops == ZEROED_LOG ||
-		num_ops == CLEARED_BLKS ||
-		num_ops == BAD_HEADER) {
-		/* we only expect zeroed log entries  or cleared log
-		 * entries at the end of the _physical_ log,
-		 * so treat them the same as bad blocks here
-		 */
-		print_xlog_bad_header(blkno-1, hbuf);
-
-		if (blkno >= block_end)
-		    break;
-		continue;
-	    }
-
-	    if (be32_to_cpu(hdr->h_version) == 2) {
-		if (xlog_print_extended_headers(fd, len, &blkno, hdr, &num_hdrs, &xhdrs) != 0)
-		    break;
-	    }
+			if (be32_to_cpu(hdr->h_version) == 2 &&
+			    xlog_print_extended_headers(fd, len, &blkno, hdr,
+					&num_hdrs, &xhdrs) != 0)
+				break;
 
 partial_log_read:
-	    error= xlog_print_record(log, fd, num_ops, len, &read_type,
-				    &partial_buf, (xlog_rec_header_t *)hbuf,
-				    xhdrs, first_hdr_found);
-	    if (read_type != FULL_READ)
-		len -= read_type;
-	    read_type = FULL_READ;
-	    if (!error)
-		blkno += BTOBB(len);
-	    else {
-		print_xlog_bad_data(blkno-1);
-		xlog_print_lseek(log, fd, blkno, SEEK_SET);
-		goto loop2;
-	    }
-	    print_xlog_record_line();
+			error = xlog_print_record(log, fd, num_ops, len,
+					&read_type, &partial_buf,
+					(struct xlog_rec_header *)hbuf,
+					xhdrs, first_hdr_found);
+			if (read_type != FULL_READ)
+				len -= read_type;
+			read_type = FULL_READ;
+			if (error) {
+				print_xlog_bad_data(blkno - 1);
+				xlog_print_lseek(log, fd, blkno, SEEK_SET);
+				goto loop2;
+			}
+			blkno += BTOBB(len);
+			print_xlog_record_line();
 loop2:
-	    if (blkno >= block_end)
-		break;
+			if (blkno >= block_end)
+				break;
+		}
 	}
-    }
 
 end:
-    printf(_("%s: logical end of log\n"), progname);
-    print_xlog_record_line();
+	printf(_("%s: logical end of log\n"), progname);
+	print_xlog_record_line();
 }
