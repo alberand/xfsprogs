@@ -872,10 +872,14 @@ xlog_extract_dinode_ts(
 }
 
 void
-xlog_print_lseek(struct xlog *log, int fd, xfs_daddr_t blkno, int whence)
+xlog_print_lseek(
+	struct xlog		*log,
+	int			fd,
+	xfs_daddr_t		 blkno,
+	int			whence)
 {
 #define BBTOOFF64(bbs)	(((xfs_off_t)(bbs)) << BBSHIFT)
-	xfs_off_t offset;
+	xfs_off_t		offset;
 
 	if (whence == SEEK_SET)
 		offset = BBTOOFF64(blkno+log->l_logBBstart);
@@ -886,15 +890,16 @@ xlog_print_lseek(struct xlog *log, int fd, xfs_daddr_t blkno, int whence)
 			progname, (long long)offset, strerror(errno));
 		exit(1);
 	}
-}	/* xlog_print_lseek */
-
+}
 
 static void
-print_lsn(char		*string,
-	  __be64	*lsn)
+print_lsn(
+	char			*string,
+	  __be64		*lsn)
 {
-    printf("%s: %u,%u", string,
-	    CYCLE_LSN(be64_to_cpu(*lsn)), BLOCK_LSN(be64_to_cpu(*lsn)));
+	printf("%s: %u,%u", string,
+		CYCLE_LSN(be64_to_cpu(*lsn)),
+		BLOCK_LSN(be64_to_cpu(*lsn)));
 }
 
 
