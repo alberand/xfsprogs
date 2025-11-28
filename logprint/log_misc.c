@@ -1321,11 +1321,15 @@ print_xlog_bad_reqd_hdrs(
 }
 
 static void
-xlog_reallocate_xhdrs(int num_hdrs, xlog_rec_ext_header_t **ret_xhdrs)
+xlog_reallocate_xhdrs(
+	int				num_hdrs,
+	struct xlog_rec_ext_header	**ret_xhdrs)
 {
-	int len = (num_hdrs-1) * sizeof(xlog_rec_ext_header_t);
+	int				len;
 
-	*ret_xhdrs = (xlog_rec_ext_header_t *)realloc(*ret_xhdrs, len);
+	len = (num_hdrs - 1) * sizeof(struct xlog_rec_ext_header);
+
+	*ret_xhdrs = realloc(*ret_xhdrs, len);
 	if (*ret_xhdrs == NULL) {
 		fprintf(stderr, _("%s: xlog_print: malloc failed for ext hdrs\n"), progname);
 		exit(1);
