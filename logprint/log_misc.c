@@ -531,39 +531,52 @@ static void
 xlog_print_trans_inode_core(
 	struct xfs_log_dinode	*ip)
 {
-    xfs_extnum_t		nextents;
+	xfs_extnum_t		nextents;
 
-    printf(_("INODE CORE\n"));
-    printf(_("magic 0x%hx mode 0%ho version %d format %d\n"),
-	   ip->di_magic, ip->di_mode, (int)ip->di_version,
-	   (int)ip->di_format);
-    printf(_("nlink %" PRIu32 " uid %d gid %d\n"),
-	   ip->di_nlink, ip->di_uid, ip->di_gid);
-    printf(_("atime 0x%llx mtime 0x%llx ctime 0x%llx\n"),
+	printf(_("INODE CORE\n"));
+	printf(_("magic 0x%hx mode 0%ho version %d format %d\n"),
+		ip->di_magic,
+		ip->di_mode,
+		(int)ip->di_version,
+		(int)ip->di_format);
+	printf(_("nlink %" PRIu32 " uid %d gid %d\n"),
+		ip->di_nlink,
+		ip->di_uid,
+		ip->di_gid);
+	printf(_("atime 0x%llx mtime 0x%llx ctime 0x%llx\n"),
 		xlog_extract_dinode_ts(ip->di_atime),
 		xlog_extract_dinode_ts(ip->di_mtime),
 		xlog_extract_dinode_ts(ip->di_ctime));
 
-    if (ip->di_flags2 & XFS_DIFLAG2_NREXT64)
-	nextents = ip->di_big_nextents;
-    else
-	nextents = ip->di_nextents;
-    printf(_("size 0x%llx nblocks 0x%llx extsize 0x%x nextents 0x%llx\n"),
-	   (unsigned long long)ip->di_size, (unsigned long long)ip->di_nblocks,
-	   ip->di_extsize, (unsigned long long)nextents);
+	if (ip->di_flags2 & XFS_DIFLAG2_NREXT64)
+		nextents = ip->di_big_nextents;
+	else
+		nextents = ip->di_nextents;
+	printf(_("size 0x%llx nblocks 0x%llx extsize 0x%x nextents 0x%llx\n"),
+		(unsigned long long)ip->di_size,
+		(unsigned long long)ip->di_nblocks,
+		ip->di_extsize,
+		(unsigned long long)nextents);
 
-    if (ip->di_flags2 & XFS_DIFLAG2_NREXT64)
-	nextents = ip->di_big_anextents;
-    else
-	nextents = ip->di_anextents;
-    printf(_("naextents 0x%llx forkoff %d dmevmask 0x%x dmstate 0x%hx\n"),
-	   (unsigned long long)nextents, (int)ip->di_forkoff, ip->di_dmevmask, ip->di_dmstate);
-    printf(_("flags 0x%x gen 0x%x\n"),
-	   ip->di_flags, ip->di_gen);
-    if (ip->di_version == 3) {
-        printf(_("flags2 0x%llx cowextsize 0x%x\n"),
-            (unsigned long long)ip->di_flags2, ip->di_cowextsize);
-    }
+	if (ip->di_flags2 & XFS_DIFLAG2_NREXT64)
+		nextents = ip->di_big_anextents;
+	else
+		nextents = ip->di_anextents;
+	printf(_("naextents 0x%llx forkoff %d dmevmask 0x%x dmstate 0x%hx\n"),
+		(unsigned long long)nextents,
+		(int)ip->di_forkoff,
+		ip->di_dmevmask,
+		ip->di_dmstate);
+	printf(_("flags 0x%x gen 0x%x\n"),
+		ip->di_flags,
+		ip->di_gen);
+
+	if (ip->di_version < 3)
+		return;
+
+	printf(_("flags2 0x%llx cowextsize 0x%x\n"),
+		(unsigned long long)ip->di_flags2,
+		ip->di_cowextsize);
 }
 
 static int
