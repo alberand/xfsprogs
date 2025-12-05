@@ -187,18 +187,20 @@ xlog_recover_print_efi(
 }
 
 int
-xlog_print_trans_efd(char **ptr, uint len)
+xlog_print_trans_efd(
+	char				**ptr,
+	uint				len)
 {
-	const char		*item_name = "EFD?";
-	xfs_efd_log_format_t	*f;
-	xfs_efd_log_format_t	lbuf;
+	const char			*item_name = "EFD?";
+	struct xfs_efd_log_format	*f;
+	struct xfs_efd_log_format	lbuf;
 
 	/* size without extents at end */
-	uint core_size = sizeof(xfs_efd_log_format_t);
+	uint core_size = sizeof(struct xfs_efd_log_format);
 
 	/*
 	 * memmove to ensure 8-byte alignment for the long longs in
-	 * xfs_efd_log_format_t structure
+	 * xfs_efd_log_format structure
 	 */
 	memmove(&lbuf, *ptr, min(core_size, len));
 	f = &lbuf;
@@ -225,12 +227,12 @@ xlog_print_trans_efd(char **ptr, uint len)
 
 void
 xlog_recover_print_efd(
-	struct xlog_recover_item *item)
+	struct xlog_recover_item	*item)
 {
-	const char		*item_name = "EFD?";
-	xfs_efd_log_format_t	*f;
+	const char			*item_name = "EFD?";
+	struct xfs_efd_log_format	*f;
 
-	f = (xfs_efd_log_format_t *)item->ri_buf[0].iov_base;
+	f = (struct xfs_efd_log_format *)item->ri_buf[0].iov_base;
 
 	switch (f->efd_type) {
 	case XFS_LI_EFD:	item_name = "EFD"; break;
@@ -376,7 +378,7 @@ xlog_print_trans_rud(
 
 	/*
 	 * memmove to ensure 8-byte alignment for the long longs in
-	 * xfs_efd_log_format_t structure
+	 * xfs_rud_log_format structure
 	 */
 	memmove(&lbuf, *ptr, min(core_size, len));
 	f = &lbuf;
