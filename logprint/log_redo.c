@@ -71,7 +71,7 @@ xlog_print_trans_efi(
 	const char			*item_name = "EFI?";
 	struct xfs_efi_log_format	*src_f, *f = NULL;
 	uint				dst_len;
-	xfs_extent_t			*ex;
+	struct xfs_extent		*ex;
 	int				i;
 	int				error = 0;
 	int				core_size = offsetof(
@@ -141,7 +141,7 @@ xlog_recover_print_efi(
 {
 	const char			*item_name = "EFI?";
 	struct xfs_efi_log_format	*f, *src_f;
-	xfs_extent_t			*ex;
+	struct xfs_extent		*ex;
 	int				i;
 	uint				src_len, dst_len;
 
@@ -154,7 +154,7 @@ xlog_recover_print_efi(
 	 * Need to convert to native format.
 	 */
 	dst_len = sizeof(struct xfs_efi_log_format) +
-		(src_f->efi_nextents) * sizeof(xfs_extent_t);
+		(src_f->efi_nextents) * sizeof(struct xfs_extent);
 	if ((f = (struct xfs_efi_log_format *)malloc(dst_len)) == NULL) {
 		fprintf(stderr, _("%s: xlog_recover_print_efi: malloc failed\n"),
 			progname);
