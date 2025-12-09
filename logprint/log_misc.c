@@ -992,7 +992,7 @@ xlog_print_op(
 			printf("0x%02x ", (unsigned int)**ptr);
 			if (n % 16 == 15)
 				printf("\n");
-			ptr++;
+			(*ptr)++;
 		}
 		printf("\n");
 		return true;
