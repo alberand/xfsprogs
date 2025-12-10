@@ -2951,6 +2951,52 @@ _("Bad CoW extent size hint %u on inode %" PRIu64 ", "),
 }
 
 /*
+ * We always rebuild the metadata directory tree during phase 6, so we mark all
+ * directory blocks and other metadata files whose contents we don't want to
+ * save to be zapped.
+ *
+ * Currently, there are no metadata files that use xattrs, so we always drop the
+ * xattr blocks of metadata files.  Parent pointers will be rebuilt during
+ * phase 6.
+ */
+static bool
+process_dinode_metafile(
+	struct xfs_mount	*mp,
+	xfs_agnumber_t		agno,
+	xfs_agino_t		agino,
+	xfs_ino_t		lino,
+	enum xr_ino_type	type)
+{
+	struct ino_tree_node	*irec = find_inode_rec(mp, agno, agino);
+	int			off = get_inode_offset(mp, lino, irec);
+
+	set_inode_is_meta(irec, off);
+
+	switch (type) {
+	case XR_INO_RTBITMAP:
+	case XR_INO_RTSUM:
+		/*
+		 * RT bitmap and summary files are always recreated when
+		 * rtgroups are enabled.  For older filesystems, they exist at
+		 * fixed locations and cannot be zapped.
+		 */
+		if (xfs_has_rtgroups(mp))
+			return true;
+		return false;
+	case XR_INO_UQUOTA:
+	case XR_INO_GQUOTA:
+	case XR_INO_PQUOTA:
+		/*
+		 * Quota checking and repair doesn't happen until phase7, so
+		 * preserve quota inodes and their contents for later.
+		 */
+		return false;
+	default:
+		return true;
+	}
+}
+
+/*
  * returns 0 if the inode is ok, 1 if the inode is corrupt
  * check_dups can be set to 1 *only* when called by the
  * first pass of the duplicate block checking of phase 4.
@@ -3565,48 +3611,9 @@ _("bad (negative) size %" PRId64 " on inode %" PRIu64 "\n"),
 	/* Does this inode think it was metadata? */
 	if (dino->di_version >= 3 &&
 	    (dino->di_flags2 & cpu_to_be64(XFS_DIFLAG2_METADATA))) {
-		struct ino_tree_node	*irec;
-		int			off;
-
-		irec = find_inode_rec(mp, agno, ino);
-		off = get_inode_offset(mp, lino, irec);
-		set_inode_is_meta(irec, off);
 		is_meta = true;
-
-		/*
-		 * We always rebuild the metadata directory tree during phase
-		 * 6, so we use this flag to get all the directory blocks
-		 * marked as free, and any other metadata files whose contents
-		 * we don't want to save.
-		 *
-		 * Currently, there are no metadata files that use xattrs, so
-		 * we always drop the xattr blocks of metadata files.  Parent
-		 * pointers will be rebuilt during phase 6.
-		 */
-		switch (type) {
-		case XR_INO_RTBITMAP:
-		case XR_INO_RTSUM:
-			/*
-			 * rt bitmap and summary files are always recreated
-			 * when rtgroups are enabled.  For older filesystems,
-			 * they exist at fixed locations and cannot be zapped.
-			 */
-			if (xfs_has_rtgroups(mp))
-				zap_metadata = true;
-			break;
-		case XR_INO_UQUOTA:
-		case XR_INO_GQUOTA:
-		case XR_INO_PQUOTA:
-			/*
-			 * Quota checking and repair doesn't happen until
-			 * phase7, so preserve quota inodes and their contents
-			 * for later.
-			 */
-			break;
-		default:
+		if (process_dinode_metafile(mp, agno, ino, lino, type))
 			zap_metadata = true;
-			break;
-		}
 	}
 
 	/*
