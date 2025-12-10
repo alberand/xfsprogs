@@ -2965,7 +2965,8 @@ process_dinode_metafile(
 	xfs_agnumber_t		agno,
 	xfs_agino_t		agino,
 	xfs_ino_t		lino,
-	enum xr_ino_type	type)
+	enum xr_ino_type	type,
+	bool			*zap_metadata)
 {
 	struct ino_tree_node	*irec = find_inode_rec(mp, agno, agino);
 	int			off = get_inode_offset(mp, lino, irec);
@@ -2973,16 +2974,6 @@ process_dinode_metafile(
 	set_inode_is_meta(irec, off);
 
 	switch (type) {
-	case XR_INO_RTBITMAP:
-	case XR_INO_RTSUM:
-		/*
-		 * RT bitmap and summary files are always recreated when
-		 * rtgroups are enabled.  For older filesystems, they exist at
-		 * fixed locations and cannot be zapped.
-		 */
-		if (xfs_has_rtgroups(mp))
-			return true;
-		return false;
 	case XR_INO_UQUOTA:
 	case XR_INO_GQUOTA:
 	case XR_INO_PQUOTA:
@@ -2991,7 +2982,25 @@ process_dinode_metafile(
 		 * preserve quota inodes and their contents for later.
 		 */
 		return false;
+	case XR_INO_DIR:
+	case XR_INO_RTBITMAP:
+	case XR_INO_RTSUM:
+	case XR_INO_RTRMAP:
+	case XR_INO_RTREFC:
+		/*
+		 * These are always recreated.  Note that for pre-metadir file
+		 * systems, the RT bitmap and summary inodes need to be
+		 * preserved, but we'll never end up here for them.
+		 */
+		*zap_metadata = true;
+		return false;
 	default:
+		do_warn(_("unexpected %s inode %" PRIu64 " with metadata flag"),
+				xr_ino_type_name[type], lino);
+		if (!no_modify)
+			do_warn(_(" will zap\n"));
+		else
+			do_warn(_(" would zap\n"));
 		return true;
 	}
 }
@@ -3612,8 +3621,9 @@ _("bad (negative) size %" PRId64 " on inode %" PRIu64 "\n"),
 	if (dino->di_version >= 3 &&
 	    (dino->di_flags2 & cpu_to_be64(XFS_DIFLAG2_METADATA))) {
 		is_meta = true;
-		if (process_dinode_metafile(mp, agno, ino, lino, type))
-			zap_metadata = true;
+		if (process_dinode_metafile(mp, agno, ino, lino, type,
+				&zap_metadata))
+			goto bad_out;
 	}
 
 	/*
