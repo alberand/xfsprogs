@@ -23,6 +23,26 @@
 #include "bmap_repair.h"
 #include "rt.h"
 
+/* inode types */
+enum xr_ino_type {
+	XR_INO_UNKNOWN,		/* unknown */
+	XR_INO_DIR,		/* directory */
+	XR_INO_RTDATA,		/* realtime file */
+	XR_INO_RTBITMAP,	/* realtime bitmap inode */
+	XR_INO_RTSUM,		/* realtime summary inode */
+	XR_INO_DATA,		/* regular file */
+	XR_INO_SYMLINK,		/* symlink */
+	XR_INO_CHRDEV,		/* character device */
+	XR_INO_BLKDEV,		/* block device */
+	XR_INO_SOCK,		/* socket */
+	XR_INO_FIFO,		/* fifo */
+	XR_INO_UQUOTA,		/* user quota inode */
+	XR_INO_GQUOTA,		/* group quota inode */
+	XR_INO_PQUOTA,		/* project quota inode */
+	XR_INO_RTRMAP,		/* realtime rmap */
+	XR_INO_RTREFC,		/* realtime refcount */
+};
+
 /*
  * gettext lookups for translations of strings use mutexes internally to
  * the library. Hence when we come through here doing parallel scans in
@@ -482,7 +502,7 @@ out_unlock:
 static inline bool
 is_reflink_type(
 	struct xfs_mount	*mp,
-	int			type)
+	enum xr_ino_type	type)
 {
 	if (type == XR_INO_DATA && xfs_has_reflink(mp))
 		return true;
@@ -503,7 +523,7 @@ process_bmbt_reclist_int(
 	xfs_mount_t		*mp,
 	xfs_bmbt_rec_t		*rp,
 	xfs_extnum_t		*numrecs,
-	int			type,
+	enum xr_ino_type	type,
 	xfs_ino_t		ino,
 	xfs_rfsblock_t		*tot,
 	blkmap_t		**blkmapp,
@@ -952,7 +972,7 @@ process_rtrmap(
 	xfs_agnumber_t		agno,
 	xfs_agino_t		ino,
 	struct xfs_dinode	*dip,
-	int			type,
+	enum xr_ino_type	type,
 	int			*dirty,
 	xfs_rfsblock_t		*tot,
 	uint64_t		*nex,
@@ -1123,7 +1143,7 @@ process_rtrefc(
 	xfs_agnumber_t			agno,
 	xfs_agino_t			ino,
 	struct xfs_dinode		*dip,
-	int				type,
+	enum xr_ino_type		type,
 	int				*dirty,
 	xfs_rfsblock_t			*tot,
 	uint64_t			*nex,
@@ -1279,7 +1299,7 @@ process_btinode(
 	xfs_agnumber_t		agno,
 	xfs_agino_t		ino,
 	struct xfs_dinode	*dip,
-	int			type,
+	enum xr_ino_type	type,
 	int			*dirty,
 	xfs_rfsblock_t		*tot,
 	xfs_extnum_t		*nex,
@@ -1455,7 +1475,7 @@ process_exinode(
 	xfs_agnumber_t		agno,
 	xfs_agino_t		ino,
 	struct xfs_dinode	*dip,
-	int			type,
+	enum xr_ino_type	type,
 	int			*dirty,
 	xfs_rfsblock_t		*tot,
 	xfs_extnum_t		*nex,
@@ -1648,7 +1668,7 @@ process_quota_inode(
 	struct xfs_mount	*mp,
 	xfs_ino_t		lino,
 	struct xfs_dinode	*dino,
-	uint			ino_type,
+	enum xr_ino_type	ino_type,
 	struct blkmap		*blkmap)
 {
 	xfs_fsblock_t		fsbno;
@@ -1935,7 +1955,7 @@ process_misc_ino_types(
 	xfs_mount_t		*mp,
 	struct xfs_dinode	*dino,
 	xfs_ino_t		lino,
-	int			type)
+	enum xr_ino_type	type)
 {
 	/*
 	 * must also have a zero size
@@ -1982,7 +2002,10 @@ _("size of quota inode %" PRIu64 " != 0 (%" PRId64 " bytes)\n"), lino,
 }
 
 static int
-process_misc_ino_types_blocks(xfs_rfsblock_t totblocks, xfs_ino_t lino, int type)
+process_misc_ino_types_blocks(
+	xfs_rfsblock_t		totblocks,
+	xfs_ino_t		lino,
+	enum xr_ino_type	type)
 {
 	/*
 	 * you can not enforce all misc types have zero data fork blocks
@@ -2092,7 +2115,7 @@ process_check_rt_inode(
 	struct xfs_mount	*mp,
 	struct xfs_dinode	*dinoc,
 	xfs_ino_t		lino,
-	int			*type,
+	enum xr_ino_type	*type,
 	int			*dirty,
 	int			expected_type,
 	const char		*tag)
@@ -2130,7 +2153,7 @@ process_check_metadata_inodes(
 	xfs_mount_t		*mp,
 	struct xfs_dinode	*dinoc,
 	xfs_ino_t		lino,
-	int			*type,
+	enum xr_ino_type	*type,
 	int			*dirty)
 {
 	if (lino == mp->m_sb.sb_rootino) {
@@ -2205,7 +2228,7 @@ process_check_inode_sizes(
 	xfs_mount_t		*mp,
 	struct xfs_dinode	*dino,
 	xfs_ino_t		lino,
-	int			type)
+	enum xr_ino_type	type)
 {
 	xfs_fsize_t		size = be64_to_cpu(dino->di_size);
 
@@ -2466,7 +2489,7 @@ process_inode_data_fork(
 	xfs_agnumber_t		agno,
 	xfs_agino_t		ino,
 	struct xfs_dinode	**dinop,
-	int			type,
+	enum xr_ino_type	type,
 	int			*dirty,
 	xfs_rfsblock_t		*totblocks,
 	xfs_extnum_t		*nextents,
@@ -3029,10 +3052,10 @@ process_dinode_int(
 	xfs_ino_t		*parent,	/* out -- parent if ino is a dir */
 	struct xfs_buf		**ino_bpp)
 {
+	enum xr_ino_type	type = XR_INO_UNKNOWN;
 	xfs_rfsblock_t		totblocks = 0;
 	xfs_rfsblock_t		atotblocks = 0;
 	int			di_mode;
-	int			type;
 	int			retval = 0;
 	xfs_extnum_t		nextents;
 	xfs_extnum_t		anextents;
@@ -3048,7 +3071,6 @@ process_dinode_int(
 
 	*dirty = *isa_dir = 0;
 	*used = is_used;
-	type = XR_INO_UNKNOWN;
 
 	lino = XFS_AGINO_TO_INO(mp, agno, ino);
 	di_mode = be16_to_cpu(dino->di_mode);
