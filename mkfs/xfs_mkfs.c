@@ -4558,8 +4558,6 @@ adjust_nr_zones(
 		max_zones = DTOBT(cli->xi->rt.size, cfg->blocklog) /
 				cfg->rgsize;
 
-	if (!cli->rgcount)
-		cfg->rgcount += XFS_RESERVED_ZONES;
 	if (cfg->rgcount > max_zones) {
 		fprintf(stderr,
 _("Warning: not enough zones (%lu/%u) for backing requested rt size due to\n"
@@ -4652,9 +4650,9 @@ _("rgsize (%s) not a multiple of fs blk size (%d)\n"),
 		}
 	}
 
-	if (cli->rtsize || cli->rgcount)
-		adjust_nr_zones(cfg, cli, zt);
-
+	if (cli->rtsize)
+		cfg->rgcount += XFS_RESERVED_ZONES;
+	adjust_nr_zones(cfg, cli, zt);
 	if (cfg->rgcount < XFS_MIN_ZONES)  {
 		fprintf(stderr,
 _("realtime group count (%llu) must be greater than the minimum zone count (%u)\n"),
