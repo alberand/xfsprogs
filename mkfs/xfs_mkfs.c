@@ -14,6 +14,7 @@
 #include "libfrog/crc32cselftest.h"
 #include "libfrog/dahashselftest.h"
 #include "libfrog/fsproperties.h"
+#include "libfrog/zones.h"
 #include "proto.h"
 #include <ini.h>
 
@@ -2541,9 +2542,6 @@ struct zone_topology {
 	struct zone_info	log;
 };
 
-/* random size that allows efficient processing */
-#define ZONES_PER_IOCTL			16384
-
 static void
 zone_validate_capacity(
 	struct zone_info	*zi,
@@ -2571,12 +2569,11 @@ report_zones(
 	const char		*name,
 	struct zone_info	*zi)
 {
-	struct blk_zone_report	*rep;
+	struct xfrog_zone_report *rep = NULL;
 	bool			found_seq = false;
-	int			fd, ret = 0;
+	int			fd;
 	uint64_t		device_size;
 	uint64_t		sector = 0;
-	size_t			rep_size;
 	unsigned int		i, n = 0;
 	struct stat		st;
 
@@ -2603,32 +2600,18 @@ report_zones(
 	zi->nr_zones = device_size / zi->zone_size;
 	zi->nr_conv_zones = 0;
 
-	rep_size = sizeof(struct blk_zone_report) +
-		   sizeof(struct blk_zone) * ZONES_PER_IOCTL;
-	rep = malloc(rep_size);
-	if (!rep) {
-		fprintf(stderr,
-_("Failed to allocate memory for zone reporting.\n"));
-		exit(1);
-	}
-
 	while (n < zi->nr_zones) {
-		struct blk_zone *zones = (struct blk_zone *)(rep + 1);
+		struct blk_zone *zones;
 
-		memset(rep, 0, rep_size);
-		rep->sector = sector;
-		rep->nr_zones = ZONES_PER_IOCTL;
-
-		ret = ioctl(fd, BLKREPORTZONE, rep);
-		if (ret) {
-			fprintf(stderr,
-_("ioctl(BLKREPORTZONE) failed: %d!\n"), -errno);
+		rep = xfrog_report_zones(fd, sector, rep);
+		if (!rep)
 			exit(1);
-		}
-		if (!rep->nr_zones)
+
+		if (!rep->rep.nr_zones)
 			break;
 
-		for (i = 0; i < rep->nr_zones; i++) {
+		zones = rep->zones;
+		for (i = 0; i < rep->rep.nr_zones; i++) {
 			if (n >= zi->nr_zones)
 				break;
 
@@ -2675,8 +2658,8 @@ _("Unknown zone type (0x%x) found.\n"), zones[i].type);
 
 			n++;
 		}
-		sector = zones[rep->nr_zones - 1].start +
-			 zones[rep->nr_zones - 1].len;
+		sector = zones[rep->rep.nr_zones - 1].start +
+			 zones[rep->rep.nr_zones - 1].len;
 	}
 
 	free(rep);
