@@ -308,4 +308,12 @@ struct kvec {
 	size_t iov_len;
 };
 
+/*
+ * Local definitions for the new cached report zones added in Linux 6.19 in case
+ * the system <linux/blkzoned.h> doesn't provide them yet.
+ */
+#ifndef BLK_ZONE_COND_ACTIVE
+#define BLK_ZONE_COND_ACTIVE	0xff
+#endif
+
 #endif	/* __XFS_PLATFORM_DEFS_H__ */
