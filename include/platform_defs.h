@@ -312,6 +312,12 @@ struct kvec {
  * Local definitions for the new cached report zones added in Linux 6.19 in case
  * the system <linux/blkzoned.h> doesn't provide them yet.
  */
+#ifndef BLKREPORTZONEV2
+#define BLKREPORTZONEV2		_IOWR(0x12, 142, struct blk_zone_report)
+#endif
+#ifndef BLK_ZONE_REP_CACHED
+#define BLK_ZONE_REP_CACHED	(1U << 31)
+#endif
 #ifndef BLK_ZONE_COND_ACTIVE
 #define BLK_ZONE_COND_ACTIVE	0xff
 #endif
