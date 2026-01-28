@@ -6,7 +6,6 @@
 #include "libfrog/util.h"
 #include "libxfs.h"
 #include <ctype.h>
-#include <linux/blkzoned.h>
 #include "libxfs/xfs_zones.h"
 #include "xfs_multidisk.h"
 #include "libxcmd.h"

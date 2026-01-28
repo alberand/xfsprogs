@@ -8,7 +8,6 @@
 #include "xfs_metadump.h"
 #include <libfrog/platform.h>
 #include "libfrog/div64.h"
-#include <linux/blkzoned.h>
 
 union mdrestore_headers {
 	__be32				magic;

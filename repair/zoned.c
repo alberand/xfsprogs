@@ -3,7 +3,6 @@
  * Copyright (c) 2024 Christoph Hellwig.
  */
 #include <ctype.h>
-#include <linux/blkzoned.h>
 #include "libxfs_priv.h"
 #include "libxfs.h"
 #include "xfs_zones.h"

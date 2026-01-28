@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <libgen.h>
 #include <urcu.h>
+#include <linux/blkzoned.h>
 
 /* long and pointer must be either 32 bit or 64 bit */
 #define BITS_PER_LONG (sizeof(long) * CHAR_BIT)
