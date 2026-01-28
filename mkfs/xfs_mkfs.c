@@ -2586,10 +2586,8 @@ report_zones(
 		exit(1);
 	}
 
-	if (fstat(fd, &st) < 0) {
-		ret = -EIO;
+	if (fstat(fd, &st) < 0)
 		goto out_close;
-	}
 	if (!S_ISBLK(st.st_mode))
 		goto out_close;
 
