@@ -3627,7 +3627,7 @@ check_lsunit:
 	else if (cfg->lsectorsize > XLOG_HEADER_SIZE)
 		lsu = cfg->blocksize; /* lsunit matches filesystem block size */
 
-	if (lsu) {
+	if (cli->lsu) {
 		/* verify if lsu is a multiple block size */
 		if (lsu % cfg->blocksize != 0) {
 			fprintf(stderr,
