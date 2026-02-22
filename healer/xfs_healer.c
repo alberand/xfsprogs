@@ -195,19 +195,27 @@ healer_nproc(
 	return ctx->foreground ? platform_nproc() : 1;
 }
 
+enum mon_state {
+	MON_START,
+	MON_EXIT,
+	MON_ERROR,
+	MON_UNSUPPORTED,
+};
+
 /* Set ourselves up to monitor the given mountpoint for health events. */
-static int
+static enum mon_state
 setup_monitor(
 	struct healer_ctx	*ctx)
 {
 	const long		BUF_SIZE = sysconf(_SC_PAGE_SIZE) * 2;
+	enum mon_state		outcome = MON_ERROR;
 	int			mon_fd;
 	int			ret;
 
 	ret = xfd_open(&ctx->mnt, ctx->mntpoint, O_RDONLY);
 	if (ret) {
 		perror(ctx->mntpoint);
-		return -1;
+		return outcome;
 	}
 
 	ret = try_capture_fsinfo(ctx);
@@ -263,6 +271,7 @@ setup_monitor(
 		case EOPNOTSUPP:
 			fprintf(stderr, "%s: %s\n", ctx->mntpoint,
  _("XFS health monitoring not supported."));
+			outcome = MON_UNSUPPORTED;
 			break;
 		case EEXIST:
 			fprintf(stderr, "%s: %s\n", ctx->mntpoint,
@@ -277,6 +286,16 @@ setup_monitor(
 	}
 	close(ctx->mnt.fd);
 	ctx->mnt.fd = -1;
+
+	/*
+	 * At this point, we know that the kernel is capable of repairing the
+	 * filesystem and telling us that it needs repairs.  If the user only
+	 * wanted us to check for the capability, we're done.
+	 */
+	if (ctx->support_check) {
+		close(mon_fd);
+		return MON_EXIT;
+	}
 
 	/*
 	 * mon_fp consumes mon_fd.  We intentionally leave mon_fp attached to
@@ -309,7 +328,7 @@ setup_monitor(
 	}
 	ctx->queue_active = true;
 
-	return 0;
+	return MON_START;
 
 out_mon_fp:
 	if (ctx->mon_fp)
@@ -322,7 +341,7 @@ out_mnt_fd:
 	if (ctx->mnt.fd >= 0)
 		close(ctx->mnt.fd);
 	ctx->mnt.fd = -1;
-	return -1;
+	return outcome;
 }
 
 /* Monitor the given mountpoint for health events. */
@@ -412,6 +431,7 @@ usage(void)
 	fprintf(stderr, _("  --foreground  Process events as soon as possible.\n"));
 	fprintf(stderr, _("  --quiet       Do not log health events to stdout.\n"));
 	fprintf(stderr, _("  --repair      Repair corrupt metadata found at runtime.\n"));
+	fprintf(stderr, _("  --supported   Check that health monitoring is supported.\n"));
 	fprintf(stderr, _("  -V            Print version.\n"));
 
 	exit(EXIT_FAILURE);
@@ -424,6 +444,7 @@ enum long_opt_nr {
 	LOPT_HELP,
 	LOPT_QUIET,
 	LOPT_REPAIR,
+	LOPT_SUPPORTED,
 	LOPT_SVCNAME,
 
 	LOPT_MAX,
@@ -456,6 +477,7 @@ main(
 		[LOPT_HELP]	   = {"help", no_argument, NULL, 0 },
 		[LOPT_QUIET]	   = {"quiet", no_argument, &ctx.log, 0 },
 		[LOPT_REPAIR]	   = {"repair", no_argument, &ctx.want_repair, 1 },
+		[LOPT_SUPPORTED]   = {"supported", no_argument, &ctx.support_check, 1 },
 		[LOPT_SVCNAME]	   = {"svcname", no_argument, &ctx.print_svcname, 1 },
 
 		[LOPT_MAX]	   = {NULL, 0, NULL, 0 },
@@ -507,14 +529,24 @@ main(
 		return EXIT_SUCCESS;
 	}
 
-	ret = setup_monitor(&ctx);
-	if (ret)
-		goto out_events;
+	switch (setup_monitor(&ctx)) {
+	case MON_UNSUPPORTED:
+		ret = 1; /* condition not met */
+		break;
+	case MON_ERROR:
+		ret = 255; /* service failed */
+		break;
+	case MON_EXIT:
+		ret = 0;
+		break;
+	case MON_START:
+		ret = monitor(&ctx);
+		break;
+	}
 
-	ret = monitor(&ctx);
-
-out_events:
 	teardown_monitor(&ctx);
 	free((char *)ctx.fsname);
+	if (ctx.support_check)
+		return ret;
 	return systemd_service_exit(ret);
 }
