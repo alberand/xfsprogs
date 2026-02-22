@@ -47,6 +47,7 @@ struct media_verify_state {
 	struct read_verify_pool	*rvp_realtime;
 	struct bitmap		*d_bad;		/* bytes */
 	struct bitmap		*r_bad;		/* bytes */
+	struct bitmap		*l_bad;		/* bytes */
 	bool			d_trunc:1;
 	bool			r_trunc:1;
 	bool			l_trunc:1;
@@ -109,6 +110,8 @@ bitmap_for_disk(
 		return vs->d_bad;
 	case XFS_DEV_RT:
 		return vs->r_bad;
+	case XFS_DEV_LOG:
+		return vs->l_bad;
 	default:
 		return NULL;
 	}
@@ -571,6 +574,12 @@ report_all_media_errors(
 		return ret;
 	}
 
+	ret = report_disk_ioerrs(ctx, vs, XFS_DEV_LOG);
+	if (ret) {
+		str_liberror(ctx, ret, _("walking log device io errors"));
+		return ret;
+	}
+
 	ret = report_disk_ioerrs(ctx, vs, XFS_DEV_RT);
 	if (ret) {
 		str_liberror(ctx, ret, _("walking rtdev io errors"));
@@ -617,9 +626,14 @@ check_rmap(
 			map->fmr_flags);
 
 	/* "Unknown" extents should be verified; they could be data. */
-	if ((map->fmr_flags & FMR_OF_SPECIAL_OWNER) &&
-			map->fmr_owner == XFS_FMR_OWN_UNKNOWN)
-		map->fmr_flags &= ~FMR_OF_SPECIAL_OWNER;
+	if ((map->fmr_flags & FMR_OF_SPECIAL_OWNER)) {
+		switch (map->fmr_owner) {
+		case XFS_FMR_OWN_UNKNOWN:
+		case XFS_FMR_OWN_LOG:
+			map->fmr_flags &= ~FMR_OF_SPECIAL_OWNER;
+			break;
+		}
+	}
 
 	/*
 	 * We only care about read-verifying data extents that have been
@@ -762,11 +776,17 @@ phase6_func(
 		goto out_dbad;
 	}
 
+	ret = -bitmap_alloc(&vs.l_bad);
+	if (ret) {
+		str_liberror(ctx, ret, _("creating log badblock bitmap"));
+		goto out_rbad;
+	}
+
 	ret = read_verify_pool_alloc(ctx, XFS_DEV_DATA, remember_ioerr, &vs,
 			&vs.rvp_data);
 	if (ret) {
 		str_liberror(ctx, ret, _("creating datadev media verifier"));
-		goto out_rbad;
+		goto out_lbad;
 	}
 	if (ctx->fsinfo.fs_log) {
 		ret = read_verify_pool_alloc(ctx, XFS_DEV_LOG, remember_ioerr,
@@ -823,16 +843,17 @@ phase6_func(
 	 */
 	if (ret || ret2 || ret3) {
 		ret |= ret2 | ret3; /* caller only cares about non-zero/zero */
-		goto out_rbad;
+		goto out_lbad;
 	}
 	if (bitmap_empty(vs.d_bad) && !vs.d_trunc &&
 	    bitmap_empty(vs.r_bad) && !vs.r_trunc &&
-	    !vs.l_trunc)
-		goto out_rbad;
+	    bitmap_empty(vs.l_bad) && !vs.l_trunc)
+		goto out_lbad;
 
 	/* Scan the whole dir tree to see what matches the bad extents. */
 	ret = report_all_media_errors(ctx, &vs);
 
+	bitmap_free(&vs.l_bad);
 	bitmap_free(&vs.r_bad);
 	bitmap_free(&vs.d_bad);
 	return ret;
@@ -852,6 +873,8 @@ out_logpool:
 out_datapool:
 	read_verify_pool_abort(vs.rvp_data);
 	read_verify_pool_destroy(vs.rvp_data);
+out_lbad:
+	bitmap_free(&vs.l_bad);
 out_rbad:
 	bitmap_free(&vs.r_bad);
 out_dbad:
@@ -872,10 +895,11 @@ phase6_estimate(
 	unsigned long long	r_blocks;
 	unsigned long long	r_bfree;
 	unsigned long long	dontcare;
+	unsigned long long	l_blocks;
 	int			ret;
 
 	ret = scrub_scan_estimate_blocks(ctx, &d_blocks, &d_bfree, &r_blocks,
-			&r_bfree, &dontcare);
+			&r_bfree, &dontcare, &l_blocks);
 	if (ret) {
 		str_liberror(ctx, ret, _("estimating verify work"));
 		return ret;
@@ -883,6 +907,10 @@ phase6_estimate(
 
 	*items = cvt_off_fsb_to_b(&ctx->mnt,
 			(d_blocks - d_bfree) + (r_blocks - r_bfree));
+
+	/* count external logs now that we scan them */
+	if (ctx->fsinfo.fs_log)
+		*items += cvt_off_fsb_to_b(&ctx->mnt, l_blocks);
 
 	/*
 	 * Each read-verify pool starts a thread pool, and each worker thread

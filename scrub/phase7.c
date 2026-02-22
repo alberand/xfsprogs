@@ -170,6 +170,7 @@ phase7_func(
 	unsigned long long	d_bfree;
 	unsigned long long	r_blocks;
 	unsigned long long	r_bfree;
+	unsigned long long	l_blocks;
 	bool			complain;
 	int			ip;
 	int			error;
@@ -223,7 +224,7 @@ phase7_func(
 	}
 
 	error = scrub_scan_estimate_blocks(ctx, &d_blocks, &d_bfree, &r_blocks,
-			&r_bfree, &used_files);
+			&r_bfree, &used_files, &l_blocks);
 	if (error) {
 		str_liberror(ctx, error, _("estimating verify work"));
 		return error;
@@ -242,6 +243,10 @@ phase7_func(
 	used_rt = cvt_off_fsb_to_b(&ctx->mnt, r_blocks - r_bfree);
 	stat_data = totalcount.dbytes;
 	stat_rt = totalcount.rbytes;
+
+	/* only count internal logs for data device summary */
+	if (!ctx->fsinfo.fs_log)
+		used_data += cvt_off_fsb_to_b(&ctx->mnt, l_blocks);
 
 	/*
 	 * Complain if the counts are off by more than 10% unless
