@@ -1459,7 +1459,7 @@ packfile(
         }
 
 	/* Swap the extents */
-	error = xfrog_defragrange(file_fd->fd, &xdf);
+	error = -xfrog_defragrange(file_fd->fd, &xdf);
 	switch (error) {
 		case 0:
 			break;
