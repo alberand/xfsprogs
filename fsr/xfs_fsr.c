@@ -1464,19 +1464,15 @@ packfile(
 		case 0:
 			break;
 	case ENOTSUP:
-		if (vflag || dflag)
-			fsrprintf(_("%s: file type not supported\n"), fname);
+		fsrprintf(_("%s: file type not supported\n"), fname);
 		break;
 	case EFAULT:
 		/* The file has changed since we started the copy */
-		if (vflag || dflag)
-			fsrprintf(_("%s: file modified defrag aborted\n"),
-					fname);
+		fsrprintf(_("%s: file modified defrag aborted\n"), fname);
 		break;
 	case EBUSY:
 		/* Timestamp has changed or mmap'ed file */
-		if (vflag || dflag)
-			fsrprintf(_("%s: file busy\n"), fname);
+		fsrprintf(_("%s: file busy\n"), fname);
 		break;
 	default:
 		fsrprintf(_("XFS_IOC_SWAPEXT failed: %s: %s\n"),
