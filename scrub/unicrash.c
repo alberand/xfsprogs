@@ -127,6 +127,9 @@ struct unicrash {
 /* Possible phony file extension. */
 #define UNICRASH_PHONY_EXTENSION ((__force badname_t)(1U << 6))
 
+/* More than one variation selector in a row. */
+#define UNICRASH_VARIATION_RUN	((__force badname_t)(1U << 7))
+
 /* FULL STOP (aka period), 0x2E */
 #define UCHAR_PERIOD		((UChar32)'.')
 
@@ -501,9 +504,14 @@ name_entry_examine(
 	UChar32			uchr;
 	uint8_t			mask = 0;
 	unsigned int		ret = 0;
+	/* Don't allow the first codepoint to be a variation */
+	UBool			was_variation = true;
 
 	uiter_setString(&uiter, entry->normstr, entry->normstrlen);
 	while ((uchr = uiter_next32(&uiter)) != U_SENTINEL) {
+		UBool		is_variation =
+			u_hasBinaryProperty(uchr, UCHAR_VARIATION_SELECTOR);
+
 		/* characters are invisible */
 		if (is_nonrendering(uchr))
 			ret |= UNICRASH_INVISIBLE;
@@ -534,6 +542,11 @@ name_entry_examine(
 		default:
 			break;
 		}
+
+		if (is_variation && was_variation)
+			ret |= UNICRASH_VARIATION_RUN;
+
+		was_variation = is_variation;
 	}
 
 	/* mixing left-to-right and right-to-left chars */
@@ -831,6 +844,18 @@ _("Unicode name \"%s\" in %s contains a possibly deceptive file extension."),
 	if (badflags & UNICRASH_CONTROL_CHAR) {
 		str_warn(uc->ctx, descr_render(dsc),
 _("Unicode name \"%s\" in %s contains control characters."),
+				bad1, what);
+		goto out;
+	}
+
+	/*
+	 * Variation codepoints only apply to the previous non-variation
+	 * codepoint.  Seeing multiple in a row or at the start of a name is
+	 * weird.
+	 */
+	if (badflags & UNICRASH_VARIATION_RUN) {
+		str_warn(uc->ctx, descr_render(dsc),
+_("Unicode name \"%s\" in %s contains a weird sequence of variation selectors."),
 				bad1, what);
 		goto out;
 	}
