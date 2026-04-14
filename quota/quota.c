@@ -62,11 +62,14 @@ quota_mount(
 
 	if (!(flags & VERBOSE_FLAG)) {
 		count = 0;
-		if ((form & XFS_BLOCK_QUOTA) && d.d_bcount)
+		if ((form & XFS_BLOCK_QUOTA) &&
+		    (d.d_bcount || d.d_blk_softlimit || d.d_blk_hardlimit))
 			count++;
-		if ((form & XFS_INODE_QUOTA) && d.d_icount)
+		if ((form & XFS_INODE_QUOTA) &&
+		    (d.d_icount || d.d_ino_softlimit || d.d_ino_hardlimit))
 			count++;
-		if ((form & XFS_RTBLOCK_QUOTA) && d.d_rtbcount)
+		if ((form & XFS_RTBLOCK_QUOTA) &&
+		    (d.d_rtbcount || d.d_rtb_softlimit || d.d_rtb_hardlimit))
 			count++;
 		if (!count)
 			return 0;
