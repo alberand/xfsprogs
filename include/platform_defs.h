@@ -330,4 +330,7 @@ struct kvec {
 #define BLK_ZONE_COND_ACTIVE	0xff
 #endif
 
+/* xfs_attr.h */
+#define __counted_by_ptr(member)
+
 #endif	/* __XFS_PLATFORM_DEFS_H__ */
