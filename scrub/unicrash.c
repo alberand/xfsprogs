@@ -112,23 +112,20 @@ struct unicrash {
 /* Name contains directional overrides. */
 #define UNICRASH_BIDI_OVERRIDE	((__force badname_t)(1U << 1))
 
-/* Name mixes left-to-right and right-to-left characters. */
-#define UNICRASH_BIDI_MIXED	((__force badname_t)(1U << 2))
-
 /* Control characters in name. */
-#define UNICRASH_CONTROL_CHAR	((__force badname_t)(1U << 3))
+#define UNICRASH_CONTROL_CHAR	((__force badname_t)(1U << 2))
 
 /* Invisible characters.  Only a problem if we have collisions. */
-#define UNICRASH_INVISIBLE	((__force badname_t)(1U << 4))
+#define UNICRASH_INVISIBLE	((__force badname_t)(1U << 3))
 
 /* Multiple names resolve to the same skeleton string. */
-#define UNICRASH_CONFUSABLE	((__force badname_t)(1U << 5))
+#define UNICRASH_CONFUSABLE	((__force badname_t)(1U << 4))
 
 /* Possible phony file extension. */
-#define UNICRASH_PHONY_EXTENSION ((__force badname_t)(1U << 6))
+#define UNICRASH_PHONY_EXTENSION ((__force badname_t)(1U << 5))
 
 /* More than one variation selector in a row. */
-#define UNICRASH_VARIATION_RUN	((__force badname_t)(1U << 7))
+#define UNICRASH_VARIATION_RUN	((__force badname_t)(1U << 6))
 
 /* FULL STOP (aka period), 0x2E */
 #define UCHAR_PERIOD		((UChar32)'.')
@@ -549,9 +546,6 @@ name_entry_examine(
 		was_variation = is_variation;
 	}
 
-	/* mixing left-to-right and right-to-left chars */
-	if (mask == 0x3)
-		ret |= UNICRASH_BIDI_MIXED;
 	return ret;
 }
 
@@ -868,19 +862,6 @@ _("Unicode name \"%s\" in %s contains a weird sequence of variation selectors.")
 	 */
 	if (!verbose && (uc->is_only_root_writeable || entry->namelen < 4))
 		goto out;
-
-	/*
-	 * It's not considered good practice (says Unicode) to mix LTR
-	 * characters with RTL characters.  The mere presence of different
-	 * bidirectional characters isn't enough to trip up software, so don't
-	 * warn about this too loudly.
-	 */
-	if (badflags & UNICRASH_BIDI_MIXED) {
-		str_info(uc->ctx, descr_render(dsc),
-_("Unicode name \"%s\" in %s mixes bidirectional characters."),
-				bad1, what);
-		goto out;
-	}
 
 	/*
 	 * We'll note if two names could be confusable with each other, but
